@@ -1,3 +1,9 @@
+# 修改默认IP & 固件名称 & 编译署名
+sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
+sed -i "s/hostname='.*'/hostname='JD-AX1800'/g" package/base-files/files/bin/config_generate
+sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ Built by JD-AX1800')/g" feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js
+
+
 #!/usr/bin/env bash
 
 set -e
