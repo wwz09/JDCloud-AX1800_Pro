@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
 
-# Git稀疏克隆，只克隆指定目录到本地
-function git_sparse_clone() {
-  branch="$1" repourl="$2" && shift 2
-  git clone --depth=1 -b $branch --single-branch --filter=blob:none --sparse $repourl
-  repodir=$(echo $repourl | awk -F '/' '{print $(NF)}')
-  cd $repodir && git sparse-checkout set $@
-  mv -f $@ ../package
-  cd .. && rm -rf $repodir
-}
-
-
-git_sparse_clone IMM https://github.com/wwz09/IPQ_package  luci-app-control-weburl luci-app-control-timewol luci-app-parentcontrol luci-app-socat
-
-
-
 set -e
 set -o errexit
 set -o errtrace
@@ -102,8 +87,8 @@ update_feeds() {
 remove_unwanted_packages() {
     local luci_packages=(
         "luci-app-passwall" "luci-app-ddns-go" "luci-app-rclone" "luci-app-ssr-plus"
-        "luci-app-vssr" "luci-app-daed" "luci-app-dae" "luci-app-alist" 
-        "luci-app-homeproxy" "luci-app-haproxy-tcp" "luci-app-openclash" 
+        "luci-app-vssr" "luci-theme-argon" "luci-app-daed" "luci-app-dae" "luci-app-alist" 
+        "luci-app-argon-config" "luci-app-homeproxy" "luci-app-haproxy-tcp" "luci-app-openclash" 
         "luci-app-mihomo" "luci-app-appfilter" "luci-app-msd_lite"
     )
     local packages_net=(
@@ -176,7 +161,7 @@ install_small8() {
         tuic-client chinadns-ng ipt2socks tcping trojan-plus simple-obfs shadowsocksr-libev \
         luci-app-passwall v2dat mosdns luci-app-mosdns adguardhome luci-app-adguardhome ddns-go \
         luci-app-ddns-go taskd luci-lib-xterm luci-lib-taskd luci-app-store quickstart \
-        luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest netdata \
+        luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest luci-theme-argon netdata \
         luci-app-netdata lucky luci-app-lucky luci-app-openclash luci-app-homeproxy luci-app-amlogic \
         nikki luci-app-nikki tailscale luci-app-tailscale oaf open-app-filter luci-app-oaf \
         easytier luci-app-easytier msd_lite luci-app-msd_lite cups luci-app-cupsd
