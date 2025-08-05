@@ -35,7 +35,7 @@ function git_sparse_clone() {
 }
 
 
-git_sparse_clone IMM https://github.com/wwz09/IPQ_package  luci-app-control-weburl luci-app-control-timewol luci-app-parentcontrol luci-app-argon-config luci-theme-argon
+git_sparse_clone IMM https://github.com/wwz09/IPQ_package  luci-app-control-weburl luci-app-control-timewol luci-app-parentcontrol luci-app-socat
 
 
 
