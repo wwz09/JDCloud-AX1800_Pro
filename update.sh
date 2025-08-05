@@ -55,25 +55,6 @@ reset_feeds_conf() {
         git checkout $COMMIT_HASH
     fi
 }
-# sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
-#wifi设置
-WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh")
-WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
-if [ -f "$WIFI_SH" ]; then
-	#修改WIFI名称
-	sed -i "s/BASE_SSID='.*'/BASE_SSID='YM520'/g" $WIFI_SH
-	#修改WIFI密码
-	sed -i "s/BASE_WORD='.*'/BASE_WORD='abc5124937,'/g" $WIFI_SH
-elif [ -f "$WIFI_UC" ]; then
-	#修改WIFI名称
-	sed -i "s/ssid='.*'/ssid='YM520'/g" $WIFI_UC
-	#修改WIFI密码
-	sed -i "s/key='.*'/key='abc5124937,'/g" $WIFI_UC
-	#修改WIFI地区
-	sed -i "s/country='.*'/country='CN'/g" $WIFI_UC
-	#修改WIFI加密
-	sed -i "s/encryption='.*'/encryption='psk2+ccmp'/g" $WIFI_UC
-fi
 
 update_feeds() {
     # 删除注释行
