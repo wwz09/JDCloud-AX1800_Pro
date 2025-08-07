@@ -1,4 +1,4 @@
-name: Release WRT
+name: build-AX1800
 run-name: Release - ${{ inputs.model }}
 
 on:
