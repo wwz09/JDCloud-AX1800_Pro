@@ -95,6 +95,6 @@ jobs:
         with:
           name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           path: ./firmware/*.*
-          name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          path: ./firmware/*.*
+         
+
 
