@@ -96,5 +96,15 @@ jobs:
           name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           path: ./firmware/*.*
          
+      - name: Upload Firmware to Release
+        if: ${{ inputs.release == true }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.FIRMWARE_FILE }}
+          asset_name: ${{ env.RELEASE_TAG }}.bin
+          asset_content_type: application/octet-stream
 
 
