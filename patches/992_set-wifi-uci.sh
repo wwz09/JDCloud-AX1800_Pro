@@ -39,29 +39,29 @@ jdc_ax1800_pro_wifi_cfg() {
 }
 
 jdc_ax6600_wifi_cfg() {
-    configure_wifi 0 149 HE80 22 'JDC_AX6600_5G1' '12345678'
-    configure_wifi 1 1 HE20 22 'JDC_AX6600' '12345678'
-    configure_wifi 2 44 HE160 23 'JDC_AX6600_5G2' '12345678'
+    configure_wifi 0 149 HE80 22 'JDC_AX6600_5G1' 'abc5124937,'
+    configure_wifi 1 1 HE20 22 'JDC_AX6600' 'abc5124937,'
+    configure_wifi 2 44 HE160 23 'JDC_AX6600_5G2' 'abc5124937,'
 }
 
 redmi_ax5_wifi_cfg() {
-    configure_wifi 0 149 HE80 20 'Redmi_AX5_5G' '12345678'
-    configure_wifi 1 1 HE20 20 'Redmi_AX5' '12345678'
+    configure_wifi 0 149 HE80 20 'Redmi_AX5_5G' 'abc5124937,'
+    configure_wifi 1 1 HE20 20 'Redmi_AX5' 'abc5124937,'
 }
 
 aliyun_ap8220_wifi_cfg() {
-    configure_wifi 0 149 HE80 26 'Aliyun_AP8220_5G' '12345678'
-    configure_wifi 1 1 HE20 23 'Aliyun_AP8220' '12345678'
+    configure_wifi 0 149 HE80 26 'Aliyun_AP8220_5G' 'abc5124937,'
+    configure_wifi 1 1 HE20 23 'Aliyun_AP8220' 'abc5124937,'
 }
 
 cmcc_rax3000m_wifi_cfg() {
-    configure_wifi 0 1 HE20 23 'CMCC_RAX3000M' '12345678'
-    configure_wifi 1 44 HE160 25 'CMCC_RAX3000M_5G' '12345678'
+    configure_wifi 0 1 HE20 23 'YM520-2.4G' 'abc5124937,'
+    configure_wifi 1 44 HE160 25 'YM520-5G' 'abc5124937,'
 }
 
 redmi_ax6_wifi_cfg() {
-    configure_wifi 0 149 HE80 22 'Redmi_AX6_5G' '12345678'
-    configure_wifi 1 1 HE20 21 'Redmi_AX6' '12345678'
+    configure_wifi 0 149 HE80 22 'Redmi_AX6_5G' 'abc5124937,'
+    configure_wifi 1 1 HE20 21 'Redmi_AX6' 'abc5124937,'
 }
 
 case "${board_name}" in
