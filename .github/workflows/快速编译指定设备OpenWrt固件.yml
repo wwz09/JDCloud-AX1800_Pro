@@ -28,9 +28,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TZ: Asia/Shanghai
-  # 编译并行任务数（根据CPU核心数自动调整）
   MAKE_JOBS: $(( $(nproc) + 1 ))
-  # 缓存保留数量
   CACHE_RETENTION_COUNT: 3
 
 jobs:
@@ -40,53 +38,61 @@ jobs:
       - name: 释放磁盘空间
         uses: sbwml/actions@free-disk
         with:
-          # 只使用该动作支持的参数
           root-reserve-gb: 10
           swap-size-gb: 16
 
-      - name: 额外清理空间（不依赖Docker）
+      - name: 额外清理空间
         run: |
-          # 手动执行额外清理操作，不依赖Docker服务
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf /var/cache/apt/archives/*.deb
           sudo rm -rf /usr/share/swift
-          # 清理更多大型无用文件
           sudo rm -rf /usr/lib/jvm
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /var/lib/gems
-          # 清理APT缓存
           sudo apt clean
           sudo apt autoremove -y --purge
 
-      - name: 初始化编译环境（兼容Ubuntu 24.04版）
+      - name: 初始化编译环境（修复distutils问题）
         run: |
           # 使用更快的源并并行安装
           sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
           sudo apt update -qq
           
-          # Ubuntu 24.04中python3-distutils已被移除，使用python3-setuptools替代
+          # 安装必要依赖
           sudo DEBIAN_FRONTEND=noninteractive apt -yqq install \
             dos2unix libfuse-dev build-essential clang flex bison g++ gawk \
             gcc-multilib gettext git libncurses5-dev libssl-dev python3-setuptools \
-            rsync unzip zlib1g-dev file wget qemu-utils
+            rsync unzip zlib1g-dev file wget qemu-utils python3-pip
           
-          # 手动安装distutils（如果需要）
-          if [ ! -f /usr/lib/python3/dist-packages/distutils/__init__.py ]; then
-            sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/__init__.py -O /usr/lib/python3/dist-packages/distutils/__init__.py
-            sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/core.py -O /usr/lib/python3/dist-packages/distutils/core.py
+          # 关键修复：使用pip安装distutils
+          if ! python3 -c "import distutils" &> /dev/null; then
+            echo "安装distutils..."
+            sudo pip3 install --upgrade setuptools
+            # 确保distutils正确安装
+            if [ ! -d /usr/lib/python3/dist-packages/distutils ]; then
+              sudo mkdir -p /usr/lib/python3/dist-packages/distutils
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/__init__.py -O /usr/lib/python3/dist-packages/distutils/__init__.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/core.py -O /usr/lib/python3/dist-packages/distutils/core.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/errors.py -O /usr/lib/python3/dist-packages/distutils/errors.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/util.py -O /usr/lib/python3/dist-packages/distutils/util.py
+            fi
           fi
+          
+          # 验证distutils安装
+          python3 -c "import distutils; print('distutils安装成功')" || { echo "distutils安装失败"; exit 1; }
           
           # 清理系统垃圾
           sudo apt -yqq autoremove --purge
           sudo apt -yqq autoclean
           sudo apt -yqq clean
 
+      # 其余步骤保持不变...
       - name: 检出代码（浅克隆）
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # 只拉取最新提交，加快克隆速度
+          fetch-depth: 1
 
       - name: 设置构建信息
         run: |
@@ -94,10 +100,8 @@ jobs:
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/${{ inputs.model }}.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
-          # 生成设备特定缓存键，包含核心配置文件
           export CACHE_KEY_BASE="${{ runner.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag', './compilecfg/*.ini', './build.sh') }}"
           echo "CACHE_KEY_BASE=$CACHE_KEY_BASE" >> $GITHUB_ENV
-          # 输出CPU核心数和并行任务数
           echo "CPU核心数: $(nproc)"
           echo "并行编译任务数: $MAKE_JOBS"
 
