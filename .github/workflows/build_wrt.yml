@@ -13,6 +13,7 @@ on:
           - cmcc_rax3000m_immwrt
           - jdcloud_ipq60xx_immwrt
           - jdcloud_ipq60xx_libwrt
+          - 360v6_ipq60xx_libwrt
       release:  # 新增：是否发布到Release的选项
         required: true
         description: Publish to Release?
@@ -118,6 +119,7 @@ jobs:
           tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
           body_path: ./release_body.txt
+
 
 
 
