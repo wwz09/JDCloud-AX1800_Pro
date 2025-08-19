@@ -44,16 +44,21 @@ jobs:
           root-reserve-gb: 10
           swap-size-gb: 16
 
-      - name: 额外清理空间（补充步骤）
+      - name: 额外清理空间（不依赖Docker）
         run: |
-          # 手动执行额外清理操作
+          # 手动执行额外清理操作，不依赖Docker服务
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf /var/cache/apt/archives/*.deb
           sudo rm -rf /usr/share/swift
-          # 清理Docker镜像释放更多空间
-          sudo docker system prune -af
+          # 清理更多大型无用文件
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /var/lib/gems
+          # 清理APT缓存
+          sudo apt clean
+          sudo apt autoremove -y --purge
 
       - name: 初始化编译环境（加速版）
         run: |
