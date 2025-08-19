@@ -88,7 +88,6 @@ jobs:
           sudo apt -yqq autoclean
           sudo apt -yqq clean
 
-      # 其余步骤保持不变...
       - name: 检出代码（浅克隆）
         uses: actions/checkout@v4
         with:
@@ -105,11 +104,8 @@ jobs:
           echo "CPU核心数: $(nproc)"
           echo "并行编译任务数: $MAKE_JOBS"
 
-      - name: 预克隆依赖（使用加速镜像）
+      - name: 预克隆依赖
         run: |
-          # 设置Git镜像加速
-          git config --global url."https://hub.fastgit.xyz/".insteadOf https://github.com/
-          git config --global url."https://mirror.ghproxy.com/https://github.com/".insteadOf https://github.com/
           ./pre_clone_action.sh ${{ inputs.model }}
 
       - name: 扩展缓存编译依赖
