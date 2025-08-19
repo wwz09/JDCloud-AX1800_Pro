@@ -76,7 +76,8 @@ if [[ -d $TARGET_DIR ]]; then
 fi
 
 make download -j$(($(nproc) * 2))
-make -j$(($(nproc) + 1)) || make -j1 V=s
+# make -j$(($(nproc) + 1)) || make -j1 V=s
+make -j$(nproc) V=0 2>&1 | tee build.log
 
 FIRMWARE_DIR="$BASE_PATH/firmware"
 \rm -rf "$FIRMWARE_DIR"
