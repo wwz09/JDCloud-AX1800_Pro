@@ -37,11 +37,23 @@ jobs:
   build-firmware:
     runs-on: ubuntu-24.04
     steps:
-      - name: 释放磁盘空间（扩展版）
+      - name: 释放磁盘空间
         uses: sbwml/actions@free-disk
         with:
-          # 删除更多不必要的工具和文件释放空间
-          extra_clean: true
+          # 只使用该动作支持的参数
+          root-reserve-gb: 10
+          swap-size-gb: 16
+
+      - name: 额外清理空间（补充步骤）
+        run: |
+          # 手动执行额外清理操作
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /var/cache/apt/archives/*.deb
+          sudo rm -rf /usr/share/swift
+          # 清理Docker镜像释放更多空间
+          sudo docker system prune -af
 
       - name: 初始化编译环境（加速版）
         run: |
@@ -56,11 +68,6 @@ jobs:
           sudo apt -yqq autoremove --purge
           sudo apt -yqq autoclean
           sudo apt -yqq clean
-          # 优化swap空间（防止编译时内存不足）
-          sudo fallocate -l 16G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
 
       - name: 检出代码（浅克隆）
         uses: actions/checkout@v4
