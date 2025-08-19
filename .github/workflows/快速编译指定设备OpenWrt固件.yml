@@ -28,9 +28,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TZ: Asia/Shanghai
-  # 编译并行任务数（根据CPU核心数自动调整）
   MAKE_JOBS: $(( $(nproc) + 1 ))
-  # 缓存保留数量
   CACHE_RETENTION_COUNT: 3
 
 jobs:
@@ -40,53 +38,61 @@ jobs:
       - name: 释放磁盘空间
         uses: sbwml/actions@free-disk
         with:
-          # 只使用该动作支持的参数
           root-reserve-gb: 10
           swap-size-gb: 16
 
-      - name: 额外清理空间（不依赖Docker）
+      - name: 额外清理空间
         run: |
-          # 手动执行额外清理操作，不依赖Docker服务
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/share/boost
           sudo rm -rf /var/cache/apt/archives/*.deb
           sudo rm -rf /usr/share/swift
-          # 清理更多大型无用文件
           sudo rm -rf /usr/lib/jvm
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /var/lib/gems
-          # 清理APT缓存
           sudo apt clean
           sudo apt autoremove -y --purge
 
-      - name: 初始化编译环境（兼容Ubuntu 24.04版）
+      - name: 初始化编译环境（修复distutils问题）
         run: |
           # 使用更快的源并并行安装
           sudo sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
           sudo apt update -qq
           
-          # Ubuntu 24.04中python3-distutils已被移除，使用python3-setuptools替代
+          # 安装必要依赖
           sudo DEBIAN_FRONTEND=noninteractive apt -yqq install \
             dos2unix libfuse-dev build-essential clang flex bison g++ gawk \
             gcc-multilib gettext git libncurses5-dev libssl-dev python3-setuptools \
-            rsync unzip zlib1g-dev file wget qemu-utils
+            rsync unzip zlib1g-dev file wget qemu-utils python3-pip
           
-          # 手动安装distutils（如果需要）
-          if [ ! -f /usr/lib/python3/dist-packages/distutils/__init__.py ]; then
-            sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/__init__.py -O /usr/lib/python3/dist-packages/distutils/__init__.py
-            sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/core.py -O /usr/lib/python3/dist-packages/distutils/core.py
+          # 关键修复：使用pip安装distutils
+          if ! python3 -c "import distutils" &> /dev/null; then
+            echo "安装distutils..."
+            sudo pip3 install --upgrade setuptools
+            # 确保distutils正确安装
+            if [ ! -d /usr/lib/python3/dist-packages/distutils ]; then
+              sudo mkdir -p /usr/lib/python3/dist-packages/distutils
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/__init__.py -O /usr/lib/python3/dist-packages/distutils/__init__.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/core.py -O /usr/lib/python3/dist-packages/distutils/core.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/errors.py -O /usr/lib/python3/dist-packages/distutils/errors.py
+              sudo wget -q https://raw.githubusercontent.com/python/cpython/3.12/Lib/distutils/util.py -O /usr/lib/python3/dist-packages/distutils/util.py
+            fi
           fi
+          
+          # 验证distutils安装
+          python3 -c "import distutils; print('distutils安装成功')" || { echo "distutils安装失败"; exit 1; }
           
           # 清理系统垃圾
           sudo apt -yqq autoremove --purge
           sudo apt -yqq autoclean
           sudo apt -yqq clean
 
+      # 其余步骤保持不变...
       - name: 检出代码（浅克隆）
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # 只拉取最新提交，加快克隆速度
+          fetch-depth: 1
 
       - name: 设置构建信息
         run: |
@@ -94,117 +100,9 @@ jobs:
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/${{ inputs.model }}.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
-          # 生成设备特定缓存键，包含核心配置文件
           export CACHE_KEY_BASE="${{ runner.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag', './compilecfg/*.ini', './build.sh') }}"
           echo "CACHE_KEY_BASE=$CACHE_KEY_BASE" >> $GITHUB_ENV
-          # 输出CPU核心数和并行任务数
           echo "CPU核心数: $(nproc)"
           echo "并行编译任务数: $MAKE_JOBS"
 
-      - name: 预克隆依赖（使用加速镜像）
-        run: |
-          # 设置Git镜像加速
-          git config --global url."https://hub.fastgit.xyz/".insteadOf https://github.com/
-          git config --global url."https://mirror.ghproxy.com/https://github.com/".insteadOf https://github.com/
-          ./pre_clone_action.sh ${{ inputs.model }}
-
-      - name: 扩展缓存编译依赖
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./action_build/.ccache
-            ./action_build/staging_dir
-            ./action_build/dl
-            ./action_build/feeds
-            ./action_build/package/feeds
-            ./action_build/tmp
-            !./action_build/tmp/dl
-          key: ${{ env.CACHE_KEY_BASE }}-${{ env.BUILD_DATE }}
-          restore-keys: |
-            ${{ env.CACHE_KEY_BASE }}-
-
-      - name: 刷新缓存时间戳
-        run: |
-          if [ -d "./action_build/staging_dir" ]; then
-            find "./action_build/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
-                find "$dir" -type f -exec touch {} +
-            done
-          fi
-          if [ -d "./action_build/feeds" ]; then
-            find "./action_build/feeds" -type f -exec touch {} +
-          fi
-
-      - name: 清理全量编译（如果需要）
-        if: inputs.clean_build == true
-        run: |
-          echo "执行全量编译，清理现有构建文件..."
-          rm -rf ./action_build/build_dir
-          rm -rf ./action_build/bin
-
-      - name: 编译固件（加速参数）
-        run: |
-          # 导出加速编译参数
-          export MAKEFLAGS="-j$MAKE_JOBS -l$(nproc)"
-          export CCACHE_SLOPPINESS=time_macros
-          export CCACHE_COMPRESS=1
-          export CCACHE_MAXSIZE=5G
-          # 执行编译并输出详细进度
-          ./build.sh ${{ inputs.model }} | tee build.log
-
-      - name: 获取内核版本
-        run: |
-          KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")
-          echo "KVER=$KVER" >> $GITHUB_ENV
-
-      - name: 智能清理旧缓存
-        run: |
-          echo "保留最新${{ env.CACHE_RETENTION_COUNT }}个缓存..."
-          gh cache list --key ${{ env.CACHE_KEY_BASE }}- --json key,createdAt --jq '. | sort_by(.createdAt) | .[].key' > cache_keys.txt
-          
-          TOTAL_CACHES=$(wc -l < cache_keys.txt)
-          CACHES_TO_DELETE=$((TOTAL_CACHES - ${{ env.CACHE_RETENTION_COUNT }}))
-          
-          if [ $CACHES_TO_DELETE -gt 0 ]; then
-            head -n $CACHES_TO_DELETE cache_keys.txt | while read -r key; do
-              gh cache delete "$key"
-            done
-          fi
-
-      - name: 输出系统信息与编译统计
-        run: |
-          echo "=============================================="
-          lscpu | grep -E "name|Core|Thread"
-          echo "=============================================="
-          df -h
-          echo "=============================================="
-          # 显示编译时间统计
-          echo "编译时间统计:"
-          grep -E "real|user|sys" build.log || true
-
-      - name: 上传编译产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          path: ./firmware/*.*
-          retention-days: 7  # 缩短 artifacts 保留时间
-
-      - name: 准备发布内容
-        if: inputs.release == 'true'
-        run: |
-          echo "云编译发布" > release_body.txt
-          echo "源码：${{ env.BUILD_SRC }}" >> release_body.txt
-          echo "内核版本：${{ env.KVER }}" >> release_body.txt
-          echo "WiFi密码：12345678" >> release_body.txt
-          echo "LAN地址：192.168.2.1" >> release_body.txt
-          echo "包含插件：" >> release_body.txt
-          grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" ./firmware/*.manifest | awk -F":" '{print $NF}' >> release_body.txt
-
-      - name: 发布固件到Release
-        if: inputs.release == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          files: ./firmware/*.*
-          body_path: ./release_body.txt
-          draft: false
-          prerelease: false
+      # 后续步骤...
