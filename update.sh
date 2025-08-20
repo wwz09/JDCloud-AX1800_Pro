@@ -148,6 +148,45 @@ remove_unwanted_packages() {
     fi
 }
 
+# 定义函数，实现删除旧目录并克隆复制新目录的功能
+update_lucky() {
+    local target_dir="./feeds/small8"
+    local repo_url="https://github.com/sirpdboy/luci-app-lucky.git"
+    local temp_dir="temp_clone"
+    local dirs=("lucky" "luci-app-lucky")
+
+    # 删除目标目录下的指定文件夹
+    echo "正在删除旧目录..."
+    for dir in "${dirs[@]}"; do
+        rm -rf "${target_dir}/${dir}"
+    done
+
+    # 克隆仓库到临时目录
+    echo "正在克隆仓库..."
+    git clone "${repo_url}" "${temp_dir}" || {
+        echo "克隆仓库失败！"
+        return 1
+    }
+
+    # 复制需要的目录到目标位置
+    echo "正在复制新目录..."
+    for dir in "${dirs[@]}"; do
+        if [ -d "${temp_dir}/${dir}" ]; then
+            cp -r "${temp_dir}/${dir}" "${target_dir}/"
+        else
+            echo "警告：仓库中未找到 ${dir} 目录，跳过复制"
+        fi
+    done
+
+    # 清理临时目录
+    echo "清理临时文件..."
+    rm -rf "${temp_dir}"
+
+    echo "操作完成！"
+}
+
+
+
 update_golang() {
     if [[ -d ./feeds/packages/lang/golang ]]; then
         \rm -rf ./feeds/packages/lang/golang
@@ -898,6 +937,7 @@ main() {
     add_wifi_default_set
     update_default_lan_addr
     remove_something_nss_kmod
+    update_lucky
     update_affinity_script
     update_ath11k_fw
     # fix_mkpkg_format_invalid
