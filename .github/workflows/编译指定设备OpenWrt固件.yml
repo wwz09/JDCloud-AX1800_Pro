@@ -115,17 +115,17 @@ jobs:
           # 从下载目录中提取最新的内核版本号（4.x/5.x/6.x系列）
           echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
-      - name: Delete Old Cache
+      #- name: Delete Old Cache
         # 删除旧的缓存，释放存储空间
-        run: |
+        #run: |
           # 使用GitHub CLI列出匹配的缓存并删除
-          gh cache list --key ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
-            gh cache delete "$key"
-          done
+          #gh cache list --key ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
+            #gh cache delete "$key"
+          #done
           # 输出当前缓存占用空间
-          echo "========cache status========"
-          echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
-          echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
+          #echo "========cache status========"
+          #echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
+          #echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
 
       - name: Machine Information
         # 输出机器信息（用于调试和资源监控）
