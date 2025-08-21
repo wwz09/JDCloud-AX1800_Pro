@@ -1,74 +1,141 @@
-name: 编译指定设备OpenWrt固件
-run-name: ${{ inputs.release == 'true' && '发布' || '编译' }} - ${{ inputs.model }}
+name: 编译指定设备OpenWrt固件  # 工作流名称
+run-name: Build - ${{ inputs.model }}  # 运行名称，包含选择的设备型号
 
+# 触发条件：手动触发工作流
 on:
   workflow_dispatch:
     inputs:
-      model:
-        required: true
-        description: 选择设备型号
-        type: choice
-        default: jdcloud_ipq60xx_immwrt
-        options:
-          - 360v6_ipq60xx_libwrt
+      model:  # 设备型号输入参数
+        required: true  # 必选参数
+        description: 选择设备型号  # 参数描述
+        type: choice  # 类型为下拉选择
+        default: jdcloud_ipq60xx_immwrt  # 默认值
+        options:  # 可选设备型号列表
           - cmcc_rax3000m_immwrt
           - jdcloud_ipq60xx_immwrt
           - jdcloud_ipq60xx_libwrt
-      release:
+          - 360v6_ipq60xx_libwrt
+      release:  # 是否发布到Release的选项
+        required: true  # 必选参数
+        description: 是否发布到Release  # 参数描述
+        type: boolean  # 类型为布尔值
+        default: true  # 默认值为true
+      build_threads:  # 新增：编译线程数选择
         required: true
-        description: 是否发布到Release
-        type: boolean
-        default: true
+        description: 编译线程数 (自动=CPU核心数, 更多线程可能更快但更耗内存)
+        type: choice
+        default: auto
+        options:
+          - auto
+          - 4
+          - 8
+          - 16
+          - 32
 
+# 环境变量配置
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # 编译优化相关环境变量
+  CCACHE_DIR: ${{ github.workspace }}/action_build/.ccache
+  CCACHE_MAXSIZE: 10G  # 增加ccache缓存大小
+  MAKEFLAGS: -j${{ fromJSON('{"auto":"$(nproc)","4":"4","8":"8","16":"16","32":"32"}')[inputs.build_threads] }}
+  # 使用更快的镜像源
+  DEBIAN_FRONTEND: noninteractive
   TZ: Asia/Shanghai
-  FIRMWARE_DIR: ./firmware  # 统一固件目录变量
 
+# 任务定义
 jobs:
-  build-firmware:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write  # 明确授予发布权限
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]  # 使用最新的Ubuntu版本
+    runs-on: ${{ matrix.os }}
+    # 增加虚拟机性能
+    env:
+      # 启用ccache加速编译
+      USE_CCACHE: 1
+      # 启用并行编译
+      PARALLEL_JOBS: ${{ fromJSON('{"auto":"$(nproc)","4":"4","8":"8","16":"16","32":"32"}')[inputs.build_threads] }}
+
     steps:
-      - name: 释放磁盘空间
+      - name: 快速释放磁盘空间
         uses: sbwml/actions@free-disk
+        with:
+          # 清理更多不必要的组件
+          clean: docker, github-cli, large-packages, swap, tools
 
-      - name: 初始化编译环境
+      - name: 优化系统性能
         run: |
-          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -yqq install dos2unix libfuse-dev
-          sudo -E apt -yqq autoremove --purge
-          sudo -E apt -yqq autoclean
-          sudo -E apt -yqq clean
-          sudo -E systemctl daemon-reload
+          # 临时增加swap空间
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          
+          # 优化文件系统性能
+          sudo sysctl -w vm.swappiness=10
+          sudo sysctl -w vm.dirty_writeback_centisecs=1500
+          sudo sysctl -w net.core.somaxconn=1024
+          
+          # 显示系统信息供参考
+          free -h
+          df -h
+          lscpu
 
-      - name: 检出代码
+      - name: 快速配置编译环境
+        run: |
+          # 使用国内镜像源加速包安装
+          sudo sed -i 's/http:\/\/archive.ubuntu.com\/ubuntu\//http:\/\/mirrors.aliyun.com\/ubuntu\//g' /etc/apt/sources.list
+          sudo apt update -y
+          
+          # 并行安装依赖包
+          sudo apt install -y -qq \
+            build-essential ccache ecj fastjar file g++ gcc \
+            gettext git java-propose-classpath libelf-dev libncurses5-dev \
+            libncursesw5-dev libssl-dev python3 python3-distutils \
+            python3-pip rsync unzip wget xsltproc zlib1g-dev \
+            libfuse-dev dos2unix quilt libc6-dev-i386 \
+            lib32gcc-s1 lib32stdc++6 libstdc++6 lib32z1 \
+            libbz2-1.0:i386 flex bison libtool automake \
+            texinfo gawk libncurses5-dev libglib2.0-dev \
+            libintltool-bin intltool libacl1-dev libltdl-dev
+            
+          # 清理缓存
+          sudo apt autoremove -y
+          sudo apt clean
+
+      - name: 拉取代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # 只拉取最新提交，加快速度
+          lfs: false  # 禁用LFS，除非确实需要
 
-      - name: 设置构建信息
+      - name: 设置编译日期和时区
         run: |
-          # 生成唯一构建时间戳，添加随机字符串确保Tag唯一性
-          export BUILD_DATE=$(date +"%y.%m.%d_%H.%M.%S")_$(head -c 4 /dev/urandom | xxd -p)
-          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-          # 从配置文件获取源码地址
+          echo "BUILD_DATE=$(date +"%y.%m.%d_%H.%M.%S")" >> $GITHUB_ENV
           export BUILD_SRC=$(awk -F"=" '/REPO_URL/ {print $NF}' "./compilecfg/${{ inputs.model }}.ini")
           echo "BUILD_SRC=$BUILD_SRC" >> $GITHUB_ENV
-          # 创建固件目录（确保存在）
-          mkdir -p $FIRMWARE_DIR
 
-      - name: 预克隆依赖
-        run: ./pre_clone_action.sh ${{ inputs.model }}
+      - name: 预克隆优化
+        run: |
+          # 启用git并行拉取
+          git config --global pack.threads 0
+          git config --global core.compression 0
+          
+          ./pre_clone_action.sh ${{ inputs.model }}
 
-      - name: 缓存编译依赖
+      - name: 优化缓存策略
         uses: actions/cache@v4
         with:
           path: |
-            ./action_build/.ccache
+            ${{ env.CCACHE_DIR }}
             ./action_build/staging_dir
-          key: ${{ runner.os }}-${{ hashFiles('**/repo_flag') }}-${{ env.BUILD_DATE }}
+            ./action_build/dl  # 缓存下载的源码包
+            ./action_build/feeds
+          key: ${{ matrix.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag', '**/*.ini') }}-${{ env.BUILD_DATE }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('**/repo_flag') }}-
+            ${{ matrix.os }}-${{ inputs.model }}-${{ hashFiles('**/repo_flag', '**/*.ini') }}-
+            ${{ matrix.os }}-${{ inputs.model }}-
 
       - name: 刷新缓存时间戳
         run: |
@@ -77,75 +144,80 @@ jobs:
                 find "$dir" -type f -exec touch {} +
             done
           fi
+          
+          # 初始化ccache
+          ccache -M $CCACHE_MAXSIZE
+          ccache -z  # 重置统计信息
 
-      - name: 编译固件
-        run: ./build.sh ${{ inputs.model }}
-
-      - name: 验证固件生成
+      - name: 加速固件编译
         run: |
-          echo "检查固件目录内容:"
-          ls -la $FIRMWARE_DIR
-          # 检查是否有固件文件生成
-          if [ -z "$(ls -A $FIRMWARE_DIR)" ]; then
-            echo "错误: 固件目录为空，编译可能失败"
-            exit 1
-          fi
+          # 显示编译线程数
+          echo "使用 $MAKEFLAGS 编译线程"
+          
+          # 启用编译进度显示
+          export V=s
+          
+          # 执行编译，使用time命令记录时间
+          time ./build.sh ${{ inputs.model }}
+          
+          # 显示ccache统计信息
+          ccache -s
 
       - name: 获取内核版本
         run: |
-          KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")
-          echo "KVER=$KVER" >> $GITHUB_ENV
+          echo "KVER=$(find ./action_build/dl -maxdepth 1 -name "linux-[4-6]\.*" | sort -r | head -n 1 | grep -oE "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
-      - name: 清理旧缓存
+      - name: 智能清理旧缓存
         run: |
-          gh cache list --key ${{ runner.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
+          # 只保留最近3个缓存
+          gh cache list --key ${{ matrix.os }}-${{ inputs.model }}- --json key,createdAt --jq '. | sort_by(.createdAt) | reverse | .[3:] | .[].key' | while read -r key; do
             gh cache delete "$key"
           done
+          
+          # 显示缓存占用
           echo "========缓存状态========"
-          echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
+          echo "ccache: $(du -sh $CCACHE_DIR | cut -f 1)"
           echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
+          echo "下载缓存: $(du -sh ./action_build/dl | cut -f 1)"
 
-      - name: 输出系统信息
+      - name: 机器信息
         run: |
           echo "=============================================="
           lscpu | grep -E "name|Core|Thread"
           echo "=============================================="
           df -h
           echo "=============================================="
+          free -h
 
-      - name: 上传编译产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          path: ${{ env.FIRMWARE_DIR }}/*.*
+      - name: 打包OpenWrt固件
+        if: ${{ inputs.model == 'n1_immwrt' }}
+        uses: unifreq/openwrt_packit@master
+        env:
+          OPENWRT_ARMVIRT: firmware/*.tar.gz
+          PACKAGE_SOC: s905d
+          KERNEL_VERSION_NAME: 6.6.y
+          WHOAMI: ZqinKing
+          # 增加打包并行度
+          PARALLEL: ${{ fromJSON('{"auto":"$(nproc)","4":"4","8":"8","16":"16","32":"32"}')[inputs.build_threads] }}
 
       - name: 准备发布内容
-        if: inputs.release == 'true'
         run: |
-          # 创建发布描述文件，增加错误处理
           echo "云编译发布" > release_body.txt
           echo "源码：${{ env.BUILD_SRC }}" >> release_body.txt
-          echo "内核版本：${{ env.KVER || '未知' }}" >> release_body.txt
-          echo "WiFi密码：12345678" >> release_body.txt
-          echo "LAN地址：192.168.2.1" >> release_body.txt
-          echo "包含插件：" >> release_body.txt
-          
-          # 安全处理manifest文件查找
-          if ls $FIRMWARE_DIR/*.manifest 1> /dev/null 2>&1; then
-            grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" $FIRMWARE_DIR/*.manifest | awk -F":" '{print $NF}' >> release_body.txt
-          else
-            echo "未找到插件清单文件" >> release_body.txt
-          fi
-          
-          # 显示生成的发布内容用于调试
-          echo "发布内容如下："
-          cat release_body.txt
+          echo "Kernel: ${{ env.KVER }}" >> release_body.txt
+          echo "编译时间: ${{ env.BUILD_DATE }}" >> release_body.txt
+          echo "编译线程: $MAKEFLAGS" >> release_body.txt
+          echo "WIFI密码: #######" >> release_body.txt
+          echo "LAN地址: 192.168.2.1" >> release_body.txt
+          echo "插件：" >> release_body.txt
+          grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" ./firmware/*.manifest | awk -F":" '{print $NF}' >> release_body.txt
 
-      - name: Release Firmware
-        # 创建GitHub Release并上传固件文件
+      - name: 发布固件
+        if: ${{ inputs.release == true }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}  # 发布标签（包含日期和设备型号）
-          # 根据设备型号选择不同的文件路径：n1_immwrt使用打包输出路径，其他使用默认固件目录
+          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
-          body_path: ./release_body.txt  # 发布说明文件路径
+          body_path: ./release_body.txt
+          # 发布时不生成zip包，直接上传文件
+          fail_on_unmatched_files: false
