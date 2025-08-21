@@ -42,7 +42,9 @@ jobs:
 
       - name: 删除工作流运行记录
         run: |
-          gh api repos/${{ github.repository }}/actions/workflows/${{ steps.get_id.outputs.WORKFLOW_ID }}/runs | jq -r '.workflow_runs[]?.id' | while read -r run_id; do
+          # 获取所有运行记录ID并删除
+          RUNS=$(gh api repos/${{ github.repository }}/actions/workflows/${{ steps.get_id.outputs.WORKFLOW_ID }}/runs)
+          echo "$RUNS" | jq -r '.workflow_runs[]?.id' | while read -r run_id; do
             if [ -n "$run_id" ]; then
               echo "删除运行记录: $run_id"
               gh api --method DELETE repos/${{ github.repository }}/actions/runs/$run_id
@@ -53,7 +55,9 @@ jobs:
       - name: 删除发布和标签
         if: github.event.inputs.delete_releases
         run: |
-          gh api repos/${{ github.repository }}/releases | jq -r '.[]?.tag_name' | while read -r tag; do
+          # 获取所有发布标签并删除
+          RELEASES=$(gh api repos/${{ github.repository }}/releases)
+          echo "$RELEASES" | jq -r '.[]?.tag_name' | while read -r tag; do
             if [ -n "$tag" ]; then
               echo "删除发布与标签: $tag"
               gh release delete "$tag" -y
