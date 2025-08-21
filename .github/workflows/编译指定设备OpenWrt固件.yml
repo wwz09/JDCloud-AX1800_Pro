@@ -61,8 +61,28 @@ jobs:
       - name: 快速释放磁盘空间
         uses: sbwml/actions@free-disk
         with:
-          # 清理更多不必要的组件
-          clean: docker, github-cli, large-packages, swap, tools
+          # 只使用该动作支持的参数
+          root-reserve-gb: 5  # 保留5GB根分区空间
+          swap-size-gb: 0     # 不创建额外swap（我们后面会手动创建）
+
+      - name: 手动清理不必要的组件
+        run: |
+          # 手动清理不需要的大型软件包和文件
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /var/cache/apt/archives/*
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/lib/android
+          
+          # 清理Docker相关文件（如果存在）
+          if command -v docker &> /dev/null; then
+            sudo docker system prune -af
+          fi
+          
+          # 显示清理后的磁盘空间
+          df -h
 
       - name: 优化系统性能
         run: |
@@ -86,20 +106,33 @@ jobs:
         run: |
           # 使用国内镜像源加速包安装
           sudo sed -i 's/http:\/\/archive.ubuntu.com\/ubuntu\//http:\/\/mirrors.aliyun.com\/ubuntu\//g' /etc/apt/sources.list
+          
+          # 启用i386架构支持（解决32位库问题）
+          sudo dpkg --add-architecture i386
           sudo apt update -y
           
-          # 并行安装依赖包
+          # 升级已安装的包（解决"19 packages can be upgraded"警告）
+          sudo apt upgrade -y
+          
+          # 并行安装依赖包，替换Ubuntu 24.04中不可用的包
           sudo apt install -y -qq \
             build-essential ccache ecj fastjar file g++ gcc \
             gettext git java-propose-classpath libelf-dev libncurses5-dev \
-            libncursesw5-dev libssl-dev python3 python3-distutils \
-            python3-pip rsync unzip wget xsltproc zlib1g-dev \
+            libncursesw5-dev libssl-dev python3 python3-pip \
+            rsync unzip wget xsltproc zlib1g-dev \
             libfuse-dev dos2unix quilt libc6-dev-i386 \
             lib32gcc-s1 lib32stdc++6 libstdc++6 lib32z1 \
             libbz2-1.0:i386 flex bison libtool automake \
             texinfo gawk libncurses5-dev libglib2.0-dev \
-            libintltool-bin intltool libacl1-dev libltdl-dev
+            intltool libacl1-dev libltdl-dev
             
+          # 对于Ubuntu 24.04中python3-distutils已合并到python3标准包中
+          # 如果仍有问题，手动安装distutils
+          if ! python3 -c "import distutils" &> /dev/null; then
+            sudo apt install -y -qq python3-setuptools
+            sudo pip3 install distutils
+          fi
+          
           # 清理缓存
           sudo apt autoremove -y
           sudo apt clean
