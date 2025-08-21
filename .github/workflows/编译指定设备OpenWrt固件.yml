@@ -141,13 +141,11 @@ jobs:
           echo "发布内容如下："
           cat release_body.txt
 
-      - name: 发布固件到Release
-        if: inputs.release == 'true'
-        uses: softprops/action-gh-release@v2.0.4
+      - name: Release Firmware
+        # 创建GitHub Release并上传固件文件
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
-          files: ${{ env.FIRMWARE_DIR }}/*.*
-          body_path: ./release_body.txt
-          draft: false
-          prerelease: false
-          debug: true  # 开启调试模式
+          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}  # 发布标签（包含日期和设备型号）
+          # 根据设备型号选择不同的文件路径：n1_immwrt使用打包输出路径，其他使用默认固件目录
+          files: ${{ inputs.model == 'n1_immwrt' && env.PACKAGED_OUTPUTPATH || './firmware' }}/*.*
+          body_path: ./release_body.txt  # 发布说明文件路径
