@@ -1,5 +1,5 @@
 name: 编译指定设备OpenWrt固件  # 工作流名称
-run-name: Build - ${{ inputs.model }}  # 运行名称，包含选择的设备型号
+run-name: 编译 - ${{ inputs.model }}  # 运行名称，包含选择的设备型号
 
 # 触发条件：手动触发工作流
 on:
