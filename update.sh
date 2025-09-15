@@ -85,7 +85,8 @@ error_handler() {
 # 设置trap捕获ERR信号和EXIT信号
 trap 'error_handler "$?"' ERR
 
-# 进度显示函数 - 提供直观的进度条\show_progress() {
+# 进度显示函数 - 提供直观的进度条
+show_progress() {
     local current="$1"
     local total="$2"
     local message="$3"
