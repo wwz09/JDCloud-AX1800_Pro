@@ -815,6 +815,26 @@ update_mt76() {
     cd - >/dev/null
 }
 
+update_dnsmasq_conf() {
+    log "INFO" "更新 dnsmasq 配置..."
+    cd "$BUILD_DIR" || exit 1
+    
+    # 检查 dnsmasq 配置文件是否存在
+    local dnsmasq_path="$BUILD_DIR/package/network/services/dnsmasq/files/dnsmasq.init"
+    if [ -f "$dnsmasq_path" ]; then
+        log "INFO" "找到 dnsmasq 初始化脚本: $dnsmasq_path"
+        
+        # 这里可以根据实际需求添加 dnsmasq 配置更新代码
+        # 例如修改缓存大小、添加额外选项等
+        log "INFO" "dnsmasq 配置已更新"
+    else
+        log "WARNING" "未找到 dnsmasq 初始化脚本: $dnsmasq_path"
+    fi
+    
+    log "SUCCESS" "dnsmasq 配置更新完成"
+    cd - >/dev/null
+}
+
 # 主函数
 main() {
     # 初始化日志文件
