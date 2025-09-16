@@ -108,7 +108,7 @@ update_feeds() {
         fi
     }
     # 检查并添加 small-package 源
-    add_feeds "small8" "https://github.com/kenzok8/small-package"
+    add_feeds "small8" "https://github.com/wwz09/small-kenzok8"
     # 检查并添加 kwrt 源
     add_feeds "kiddin9" "https://github.com/kiddin9/kwrt-packages.git"
     # 检查并添加 opentopd 源
