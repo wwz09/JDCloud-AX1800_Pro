@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+#
+# Copyright (C) 2025 ZqinKing
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 set -e
 set -o errexit
@@ -18,43 +33,12 @@ REPO_URL=$1
 REPO_BRANCH=$2
 BUILD_DIR=$3
 COMMIT_HASH=$4
-CONFIG_FILE=$5
-DISABLED_FUNCTIONS=$6
-ENABLED_FUNCTIONS=$7
-KERNEL_VERMAGIC=$8
-KERNEL_MODULES=$9
 
 FEEDS_CONF="feeds.conf.default"
 GOLANG_REPO="https://github.com/sbwml/packages_lang_golang"
 GOLANG_BRANCH="25.x"
 THEME_SET="argon"
 LAN_ADDR="192.168.2.1"
-_set_config() {
-    key=$1
-    value=$2
-    original=$(grep "^$key" "$CONFIG_FILE" | cut -d'=' -f2)
-    echo "Setting $key=$value (original: $original)"
-    sed -i "s/^\($key\s*=\s*\).*\$/\1$value/" .config
-}
-_set_config_quote() {
-    key=$1
-    value=$2
-    original=$(grep "^$key" "$CONFIG_FILE" | cut -d'=' -f2)
-    echo "Setting $key=\"$value\" (original: $original)"
-    sed -i "s/^\($key\s*=\s*\).*\$/\1\"$value\"/" .config
-}
-_get_config() {
-    key=$1
-    grep "^$key=" "$CONFIG_FILE" | cut -d'=' -f2
-}
-_get_arch_from_config() {
-    value_CONFIG_TARGET_x86_64=$(_get_config "CONFIG_TARGET_x86_64")
-    if [[ $value_CONFIG_TARGET_x86_64 == "y" ]]; then
-        echo "x86_64"
-    else
-        echo "aarch64"
-    fi
-}
 
 clone_repo() {
     if [[ ! -d $BUILD_DIR ]]; then
@@ -82,12 +66,7 @@ clean_up() {
 }
 
 reset_feeds_conf() {
-    if [ "$(git symbolic-ref -q HEAD)" == "" ]; then
-        echo "[git] Detached HEAD state Mode"
-        git reset --hard HEAD
-    else
-        git reset --hard origin/$REPO_BRANCH
-    fi
+    git reset --hard origin/$REPO_BRANCH
     git clean -f -d
     git pull
     if [[ $COMMIT_HASH != "none" ]]; then
@@ -98,25 +77,14 @@ reset_feeds_conf() {
 update_feeds() {
     # 删除注释行
     sed -i '/^#/d' "$BUILD_DIR/$FEEDS_CONF"
-    add_feeds() {
-        local feed=$1
-        local url=$2
-        if ! grep -q "$feed" "$BUILD_DIR/$FEEDS_CONF"; then
-            # 确保文件以换行符结尾
-            [ -z "$(tail -c 1 "$BUILD_DIR/$FEEDS_CONF")" ] || echo "" >>"$BUILD_DIR/$FEEDS_CONF"
-            echo "src-git $feed $url" >>"$BUILD_DIR/$FEEDS_CONF"
-        fi
-    }
+
     # 检查并添加 small-package 源
-    add_feeds "small8" "https://github.com/wwz09/small-kenzok8"
-    # 检查并添加 kwrt 源
-    add_feeds "kiddin9" "https://github.com/kiddin9/kwrt-packages.git"
-    # 检查并添加 opentopd 源
-    # add_feeds "opentopd" "https://github.com/sirpdboy/sirpdboy-package"
-    # 检查并添加 node 源
-    # add_feeds "node" "https://github.com/nxhack/openwrt-node-packages.git"
-    # 检查并添加 libremesh 源
-    # add_feeds "libremesh" "https://github.com/libremesh/lime-packages"
+    if ! grep -q "small-package" "$BUILD_DIR/$FEEDS_CONF"; then
+        # 确保文件以换行符结尾
+        [ -z "$(tail -c 1 "$BUILD_DIR/$FEEDS_CONF")" ] || echo "" >>"$BUILD_DIR/$FEEDS_CONF"
+        echo "src-git small8 https://github.com/kenzok8/small-package" >>"$BUILD_DIR/$FEEDS_CONF"
+    fi
+
     # 添加bpf.mk解决更新报错
     if [ ! -f "$BUILD_DIR/include/bpf.mk" ]; then
         touch "$BUILD_DIR/include/bpf.mk"
@@ -187,11 +155,6 @@ remove_unwanted_packages() {
         \rm -rf ./package/istore
     fi
 
-    git clone https://github.com/LazuliKao/luci-theme-argon -b openwrt-24.10 ./feeds/luci/themes/luci-theme-argon-new
-    mv ./feeds/luci/themes/luci-theme-argon-new/luci-theme-argon ./feeds/luci/themes/luci-theme-argon
-    mv ./feeds/luci/themes/luci-theme-argon-new/luci-app-argon-config ./feeds/luci/applications/luci-app-argon-config
-    \rm -rf ./feeds/luci/themes/luci-theme-argon-new
-
     # ipq60xx不支持NSS offload mnet_rx
     # if grep -q "nss_packages" "$BUILD_DIR/$FEEDS_CONF"; then
     #     rm -rf "$BUILD_DIR/feeds/nss_packages/wwan"
@@ -202,45 +165,6 @@ remove_unwanted_packages() {
         find "$BUILD_DIR/target/linux/qualcommax/base-files/etc/uci-defaults/" -type f -name "99*.sh" -exec rm -f {} +
     fi
 }
-
-# 定义函数，实现删除旧目录并克隆复制新目录的功能
-update_lucky() {
-    local target_dir="./feeds/small8"
-    local repo_url="https://github.com/sirpdboy/luci-app-lucky.git"
-    local temp_dir="temp_clone"
-    local dirs=("lucky" "luci-app-lucky")
-
-    # 删除目标目录下的指定文件夹
-    echo "正在删除旧目录..."
-    for dir in "${dirs[@]}"; do
-        rm -rf "${target_dir}/${dir}"
-    done
-
-    # 克隆仓库到临时目录
-    echo "正在克隆仓库..."
-    git clone "${repo_url}" "${temp_dir}" || {
-        echo "克隆仓库失败！"
-        return 1
-    }
-
-    # 复制需要的目录到目标位置
-    echo "正在复制新目录..."
-    for dir in "${dirs[@]}"; do
-        if [ -d "${temp_dir}/${dir}" ]; then
-            cp -r "${temp_dir}/${dir}" "${target_dir}/"
-        else
-            echo "警告：仓库中未找到 ${dir} 目录，跳过复制"
-        fi
-    done
-
-    # 清理临时目录
-    echo "清理临时文件..."
-    rm -rf "${temp_dir}"
-
-    echo "操作完成！"
-}
-
-
 
 update_golang() {
     if [[ -d ./feeds/packages/lang/golang ]]; then
@@ -262,7 +186,7 @@ install_small8() {
         luci-app-quickstart luci-app-istorex luci-app-cloudflarespeedtest netdata luci-app-netdata \
         lucky luci-app-lucky luci-app-openclash luci-app-homeproxy luci-app-amlogic nikki luci-app-nikki \
         tailscale luci-app-tailscale oaf open-app-filter luci-app-oaf easytier luci-app-easytier \
-        msd_lite luci-app-msd_lite cups luci-app-cupsd luci-app-timecontrol
+        msd_lite luci-app-msd_lite cups luci-app-cupsd luci-app-timecontrol luci-theme-argon luci-app-argon-config
 }
 
 install_fullconenat() {
@@ -274,38 +198,14 @@ install_fullconenat() {
     fi
 }
 
-# install_opentopd() {
-#     # \rm -rf ./feeds/opentopd/luci-app-advancedplus
-#     # git clone https://github.com/sirpdboy/luci-app-advancedplus.git ./feeds/opentopd/luci-app-advancedplus
-#     ./scripts/feeds install -p opentopd -f cpulimit luci-app-cpulimit luci-app-advanced
-# }
-
-install_kiddin9() {
-    ./scripts/feeds install -p kiddin9 -f luci-app-control-weburl luci-app-control-timewol luci-app-control-webrestriction luci-app-parentcontrol luci-app-turboacc
-}
-
-# install_node() {
-#     ./scripts/feeds update node
-#     \rm -rf ./package/feeds/packages/node
-#     \rm -rf ./package/feeds/packages/node-*
-#     ./scripts/feeds install -a -p node
-# }
-
 install_feeds() {
     ./scripts/feeds update -i
     for dir in $BUILD_DIR/feeds/*; do
         # 检查是否为目录并且不以 .tmp 结尾，并且不是软链接
         if [ -d "$dir" ] && [[ ! "$dir" == *.tmp ]] && [ ! -L "$dir" ]; then
-            dir_name=$(basename "$dir")
-            if [[ "$dir_name" == "small8" ]]; then
+            if [[ $(basename "$dir") == "small8" ]]; then
                 install_small8
                 install_fullconenat
-            # elif [[ "$dir_name" == "opentopd" ]]; then
-            #     install_opentopd
-            elif [[ "$dir_name" == "kiddin9" ]]; then
-                install_kiddin9
-            # elif [[ "$dir_name" == "node" ]]; then
-            #     install_node
             else
                 ./scripts/feeds install -f -ap $(basename "$dir")
             fi
@@ -614,7 +514,7 @@ update_nss_pbuf_performance() {
 set_build_signature() {
     local file="$BUILD_DIR/feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/10_system.js"
     if [ -d "$(dirname "$file")" ] && [ -f $file ]; then
-        sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ build by LazuliKao')/g" "$file"
+        sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ build by ZqinKing')/g" "$file"
     fi
 }
 
@@ -730,13 +630,7 @@ update_package() {
         echo "更新软件包 $1 到 $PKG_VER $PKG_HASH"
     fi
 }
-update_packages() {
-    update_package "runc" "releases" "v1.2.6"
-    update_package "containerd" "releases" "v1.7.27"
-    update_package "docker" "tags" "v28.2.2"
-    update_package "dockerd" "releases" "v28.2.2"
-    # update_package "xray-core"
-}
+
 # 添加系统升级时的备份信息
 function add_backup_info_to_sysupgrade() {
     local conf_path="$BUILD_DIR/package/base-files/files/etc/sysupgrade.conf"
@@ -852,63 +746,6 @@ add_gecoosac() {
     if ! git clone --depth 1 "$repo_url" "$gecoosac_dir"; then
         echo "错误：从 $repo_url 克隆 openwrt-gecoosac 仓库失败" >&2
         exit 1
-    fi
-}
-
-update_proxy_app_menu_location() {
-    # passwall
-    local passwall_path="$BUILD_DIR/package/feeds/small8/luci-app-passwall/luasrc/controller/passwall.lua"
-    if [ -d "${passwall_path%/*}" ] && [ -f "$passwall_path" ]; then
-        local pos=$(grep -n "entry" "$passwall_path" | head -n 1 | awk -F ":" '{print $1}')
-        if [ -n "$pos" ]; then
-            sed -i ''${pos}'i\	entry({"admin", "proxy"}, firstchild(), "Proxy", 30).dependent = false' "$passwall_path"
-            sed -i 's/"services"/"proxy"/g' "$passwall_path"
-        fi
-    fi
-    # passwall2
-    local passwall2_path="$BUILD_DIR/package/feeds/small8/luci-app-passwall2/luasrc/controller/passwall2.lua"
-    if [ -d "${passwall2_path%/*}" ] && [ -f "$passwall2_path" ]; then
-        local pos=$(grep -n "entry" "$passwall2_path" | head -n 1 | awk -F ":" '{print $1}')
-        if [ -n $pos ]; then
-            sed -i ''${pos}'i\	entry({"admin", "proxy"}, firstchild(), "Proxy", 30).dependent = false' "$passwall2_path"
-            sed -i 's/"services"/"proxy"/g' "$passwall2_path"
-        fi
-    fi
-
-    # homeproxy
-    local homeproxy_path="$BUILD_DIR/package/feeds/small8/luci-app-homeproxy/root/usr/share/luci/menu.d/luci-app-homeproxy.json"
-    if [ -d "${homeproxy_path%/*}" ] && [ -f "$homeproxy_path" ]; then
-        sed -i 's/\/services\//\/proxy\//g' "$homeproxy_path"
-    fi
-
-    # nikki
-    local nikki_path="$BUILD_DIR/package/feeds/small8/luci-app-nikki/root/usr/share/luci/menu.d/luci-app-nikki.json"
-    if [ -d "${nikki_path%/*}" ] && [ -f "$nikki_path" ]; then
-        sed -i 's/\/services\//\/proxy\//g' "$nikki_path"
-    fi
-}
-
-update_dns_app_menu_location() {
-    # smartdns
-    local smartdns_path="$BUILD_DIR/package/feeds/small8/luci-app-smartdns/luasrc/controller/smartdns.lua"
-    if [ -d "${smartdns_path%/*}" ] && [ -f "$smartdns_path" ]; then
-        local pos=$(grep -n "entry" "$smartdns_path" | head -n 1 | awk -F ":" '{print $1}')
-        if [ -n "$pos" ]; then
-            sed -i ''${pos}'i\	entry({"admin", "dns"}, firstchild(), "DNS", 29).dependent = false' "$smartdns_path"
-            sed -i 's/"services"/"dns"/g' "$smartdns_path"
-        fi
-    fi
-
-    # mosdns
-    local mosdns_path="$BUILD_DIR/package/feeds/small8/luci-app-mosdns/root/usr/share/luci/menu.d/luci-app-mosdns.json"
-    if [ -d "${mosdns_path%/*}" ] && [ -f "$mosdns_path" ]; then
-        sed -i 's/\/services\//\/dns\//g' "$mosdns_path"
-    fi
-
-    # AdGuardHome
-    local adg_path="$BUILD_DIR/package/feeds/small8/luci-app-adguardhome/luasrc/controller/AdGuardHome.lua"
-    if [ -d "${adg_path%/*}" ] && [ -f "$adg_path" ]; then
-        sed -i 's/"services"/"dns"/g' "$adg_path"
     fi
 }
 
@@ -1038,54 +875,6 @@ update_diskman() {
     fi
 }
 
-update_uwsgi_limit_as() {
-    # 更新 uwsgi 的 limit-as 配置，将其值更改为 8192
-    local cgi_io_ini="$BUILD_DIR/feeds/packages/net/uwsgi/files-luci-support/luci-cgi_io.ini"
-    local webui_ini="$BUILD_DIR/feeds/packages/net/uwsgi/files-luci-support/luci-webui.ini"
-
-    if [ -f "$cgi_io_ini" ]; then
-        # 将 luci-cgi_io.ini 文件中的 limit-as 值更新为 8192
-        sed -i 's/^limit-as = .*/limit-as = 8192/g' "$cgi_io_ini"
-    fi
-
-    if [ -f "$webui_ini" ]; then
-        # 将 luci-webui.ini 文件中的 limit-as 值更新为 8192
-        sed -i 's/^limit-as = .*/limit-as = 8192/g' "$webui_ini"
-    fi
-}
-
-remove_tweaked_packages() {
-    local target_mk="$BUILD_DIR/include/target.mk"
-    if [ -f "$target_mk" ]; then
-        # 检查目标行是否未被注释
-        if grep -q "^DEFAULT_PACKAGES += \$(DEFAULT_PACKAGES.tweak)" "$target_mk"; then
-            # 如果未被注释，则添加注释
-            sed -i 's/DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.tweak)/# DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.tweak)/g' "$target_mk"
-        fi
-    fi
-}
-
-update_argon() {
-    local repo_url="https://github.com/ZqinKing/luci-theme-argon.git"
-    local dst_theme_path="$BUILD_DIR/feeds/luci/themes/luci-theme-argon"
-    local tmp_dir
-    tmp_dir=$(mktemp -d)
-
-    echo "正在更新 argon 主题..."
-
-    if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
-        echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
-
-    rm -rf "$dst_theme_path"
-    rm -rf "$tmp_dir/.git"
-    mv "$tmp_dir" "$dst_theme_path"
-
-    echo "luci-theme-argon 更新完成"
-}
-
 add_quickfile() {
     local repo_url="https://github.com/sbwml/luci-app-quickfile.git"
     local target_dir="$BUILD_DIR/package/emortal/quickfile"
@@ -1151,172 +940,55 @@ EOF
     fi
 }
 
-update_base_files() {
-    local base_files_path="$BUILD_DIR/package/base-files/files"
-    local uci_defaults_path="$base_files_path/etc/uci-defaults"
-    if [ -d "$uci_defaults_path" ]; then
-        cp -f "$BASE_PATH/uci-defaults/"* "$uci_defaults_path"
+update_uwsgi_limit_as() {
+    # 更新 uwsgi 的 limit-as 配置，将其值更改为 8192
+    local cgi_io_ini="$BUILD_DIR/feeds/packages/net/uwsgi/files-luci-support/luci-cgi_io.ini"
+    local webui_ini="$BUILD_DIR/feeds/packages/net/uwsgi/files-luci-support/luci-webui.ini"
+
+    if [ -f "$cgi_io_ini" ]; then
+        # 将 luci-cgi_io.ini 文件中的 limit-as 值更新为 8192
+        sed -i 's/^limit-as = .*/limit-as = 8192/g' "$cgi_io_ini"
+    fi
+
+    if [ -f "$webui_ini" ]; then
+        # 将 luci-webui.ini 文件中的 limit-as 值更新为 8192
+        sed -i 's/^limit-as = .*/limit-as = 8192/g' "$webui_ini"
     fi
 }
 
-add_ohmyzsh() {
-    local base_files_path="$BUILD_DIR/package/base-files/files"
-    echo "Adding oh-my-zsh"
-    mkdir -p "$base_files_path/root"
-    if [ -d "$base_files_path/root/.oh-my-zsh" ]; then
-        rm -rf "$base_files_path/root/.oh-my-zsh"
-    fi
-    git clone https://mirror.nju.edu.cn/git/ohmyzsh.git "$base_files_path/root/.oh-my-zsh"
-    if [ -f "$base_files_path/root/.zshrc" ]; then
-        rm "$base_files_path/root/.zshrc"
-    fi
-    cp "$base_files_path/root/.oh-my-zsh/templates/zshrc.zsh-template" "$base_files_path/root/.zshrc"
-    # echo "source /etc/profile" >> "$base_files_path/root/.zshrc"
-    sed -i "1i source /etc/profile" "$base_files_path/root/.zshrc"
-    # sed -i "s:/bin/ash:/usr/bin/zsh:g" "base_files_path/etc/passwd"
-}
-
-add_nbtverify() {
-    local base_files_path="$BUILD_DIR/package/base-files/files"
-    echo "Adding nbtverify"
-    mkdir -p "$base_files_path/root"
-    local ipk_path="$base_files_path/root/luci-app-nbtverify.ipk"
-    if [ -f "$ipk_path" ]; then
-        echo "luci-app-nbtverify already exists"
-        return
-    fi
-    local arch=$(_get_arch_from_config)
-    if [[ $arch == "x86_64" ]]; then
-        wget https://github.com/LazuliKao/luci-app-nbtverify/releases/download/v0.1.9/luci-app-nbtverify_amd64_x86_64.ipk -O "$ipk_path"
-    elif [[ $arch == "aarch64" ]]; then
-        wget https://github.com/LazuliKao/luci-app-nbtverify/releases/download/v0.1.9/luci-app-nbtverify_arm64_aarch64_cortex-a53.ipk -O "$ipk_path"
-    else
-        echo "[nbtverify] Unsupported architecture: $arch"
-        return
-    fi
-}
-
-add_turboacc() {
-    cd "$BUILD_DIR"
-    curl -sSL https://raw.githubusercontent.com/chenmozhijin/turboacc/luci/add_turboacc.sh -o add_turboacc.sh
-    bash add_turboacc.sh --no-sfe
-    cd -
-}
-
-fix_cudy_tr3000_114m() {
-
-    #mt7981b-cudy-tr3000-v1-ubootmod.dts
-    #  target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1-ubootmod.dts
-    #  target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dts
-    local size="0x7200000" #114MB
-    # local size="0x7000000" #112MB
-    local dts_file="$BUILD_DIR/target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1-ubootmod.dts"
-    if [ -f "$dts_file" ]; then
-        sed -i "s/reg = <0x5c0000 0x[0-9a-fA-F]*>/reg = <0x5c0000 $size>/g" "$dts_file"
-        echo "Updated $dts_file"
-    fi
-    local dts_file2="$BUILD_DIR/target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dts"
-    if [ -f "$dts_file2" ]; then
-        sed -i "s/reg = <0x5c0000 0x[0-9a-fA-F]*>/reg = <0x5c0000 $size>/g" "$dts_file2"
-        echo "Updated $dts_file2"
-    fi
-    local dts_uboot_file="$BUILD_DIR/package/boot/uboot-mediatek/patches/445-add-cudy_tr3000-v1.patch"
-    if [ -f "$dts_uboot_file" ]; then
-        sed -i "s/0x5c0000 0x[0-9a-fA-F]*/0x5c0000 $size/g" "$dts_uboot_file"
-        echo "Updated $dts_uboot_file"
-    fi
-    local dts_for_padavanonly="$BUILD_DIR/target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7981-cudy-tr3000-v1.dts"
-    if [ -f "$dts_for_padavanonly" ]; then
-        sed -i "s/reg = <0x5c0000 0x[0-9a-fA-F]*>/reg = <0x5c0000 $size>/g" "$dts_for_padavanonly"
-        echo "Updated $dts_for_padavanonly"
-    fi
-}
-
-fix_kernel_magic() {
-    # Check if KERNEL_VERMAGIC is empty or not specified
-    if [ -z "$KERNEL_VERMAGIC" ]; then
-        echo "KERNEL_VERMAGIC is empty, skipping kernel magic fix"
-        return 0
-    fi
-
-    local kernel_defaults="$BUILD_DIR/include/kernel-defaults.mk"
-    sed -i "/\\\$(LINUX_DIR)\/.vermagic$/c\\\techo ${KERNEL_VERMAGIC} > \\\$(LINUX_DIR)/.vermagic" "$kernel_defaults"
-    echo "Kernel vermagic set to: $KERNEL_VERMAGIC"
-
-    local kernel_makefile="$BUILD_DIR/package/kernel/linux/Makefile"
-    sed -i "/STAMP_BUILT:=/c\\  STAMP_BUILT:=\\\$(STAMP_BUILT)_$KERNEL_VERMAGIC" "$kernel_makefile"
-
-    # If KERNEL_MODULES is specified, add the distfeeds.conf
-    if [ -n "$KERNEL_MODULES" ]; then
-        local base_files_path="$BUILD_DIR/package/base-files/files"
-        local uci_defaults_path="$base_files_path/etc/uci-defaults"
-        if [ -d "$uci_defaults_path" ]; then
-            cat <<EOF >"$uci_defaults_path/99-kmod-distfeeds.sh"
-echo "src/gz kmod $KERNEL_MODULES" >> /etc/opkg/distfeeds.conf
-EOF
+remove_tweaked_packages() {
+    local target_mk="$BUILD_DIR/include/target.mk"
+    if [ -f "$target_mk" ]; then
+        # 检查目标行是否未被注释
+        if grep -q "^DEFAULT_PACKAGES += \$(DEFAULT_PACKAGES.tweak)" "$target_mk"; then
+            # 如果未被注释，则添加注释
+            sed -i 's/DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.tweak)/# DEFAULT_PACKAGES += $(DEFAULT_PACKAGES.tweak)/g' "$target_mk"
         fi
     fi
 }
 
-update_mt76() {
-    echo "Update Mt76 version."
-    patch -p1 <"$BASE_PATH/patches/update_mt76.patch"
-    echo "Add extra patch file for mt76."
-    local mt76_patch_dir="$BUILD_DIR/package/kernel/mt76/patches"
-    if [ -d "$mt76_patch_dir" ]; then
-        cp -f "$BASE_PATH/patches/mt76/002_mt76_mt7921_fix_returned_txpower.patch" "$mt76_patch_dir"
-        cp -f "$BASE_PATH/patches/mt76/003_mt76_mt7925_fix_returned_txpower.patch" "$mt76_patch_dir"
-    else
-        echo "Mt76 patch directory does not exist: $mt76_patch_dir"
-    fi
-}
+update_argon() {
+    local repo_url="https://github.com/ZqinKing/luci-theme-argon.git"
+    local dst_theme_path="$BUILD_DIR/feeds/luci/themes/luci-theme-argon"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
 
-_trim_space() {
-    local str=$1
-    echo "$str" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
-}
-_call_function() {
-    local func_name=$1
-    shift
-    if type "$func_name" &>/dev/null; then
-        "$func_name" "$@"
-    else
-        echo "    Function '$func_name' not found."
+    echo "正在更新 argon 主题..."
+
+    if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
+        echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
+        rm -rf "$tmp_dir"
+        exit 1
     fi
-}
-_run_function() {
-    local func_name=$1
-    shift
-    if [[ $func_name =~ ^# ]]; then
-        local original_name=${func_name:1}
-        local original_name=$(_trim_space "$original_name")
-        if [[ $ENABLED_FUNCTIONS =~ $original_name ]]; then
-            echo "+ '$original_name'"
-            echo "    Call Force-Enabled Function '$original_name'"
-            _call_function "$original_name" "$@"
-        else
-            echo "- '$original_name'"
-            echo "    Skip Comment Function '$original_name'"
-        fi
-    elif [[ $DISABLED_FUNCTIONS =~ $func_name ]]; then
-        echo "- '$func_name'"
-        echo "    Skip Disabled Function '$func_name'"
-    else
-        echo "+ '$func_name'"
-        _call_function "$func_name" "$@"
-    fi
-}
-_foreach_function() {
-    while read -r func_name; do
-        if [ -n "$func_name" ]; then
-            _run_function "$func_name"
-        fi
-    done < <(cat)
+
+    rm -rf "$dst_theme_path"
+    rm -rf "$tmp_dir/.git"
+    mv "$tmp_dir" "$dst_theme_path"
+
+    echo "luci-theme-argon 更新完成"
 }
 
 main() {
-    cat <<EOF | _foreach_function
-
     clone_repo
     clean_up
     reset_feeds_conf
@@ -1332,7 +1004,6 @@ main() {
     add_wifi_default_set
     update_default_lan_addr
     remove_something_nss_kmod
-    update_lucky
     update_affinity_script
     update_ath11k_fw
     # fix_mkpkg_format_invalid
@@ -1355,6 +1026,7 @@ main() {
     add_timecontrol
     add_gecoosac
     add_quickfile
+    update_lucky
     fix_rust_compile_error
     update_smartdns
     update_diskman
@@ -1364,20 +1036,13 @@ main() {
     install_feeds
     support_fw4_adg
     update_script_priority
-    update_base_files
-    add_ohmyzsh
-    add_nbtverify
-    # add_turboacc
-    # fix_cudy_tr3000_114m
     fix_easytier
     update_geoip
-    update_packages
-    # update_proxy_app_menu_location
-    # update_dns_app_menu_location
-    # fix_kernel_magic
-    # update_mt76
-    apply_hash_fixes
-EOF
+    update_package "runc" "releases" "v1.2.6"
+    update_package "containerd" "releases" "v1.7.27"
+    update_package "docker" "tags" "v28.2.2"
+    update_package "dockerd" "releases" "v28.2.2"
+    apply_hash_fixes # 调用哈希修正函数
 }
 
 main "$@"
