@@ -646,6 +646,12 @@ EOF
 
 # 更新启动顺序
 function update_script_priority() {
+    # 检查BUILD_DIR变量是否定义
+    if [ -z "$BUILD_DIR" ]; then
+        echo "错误：BUILD_DIR 变量未定义，无法更新脚本启动顺序" >&2
+        return 1
+    fi
+    
     # 更新qca-nss驱动的启动顺序
     local qca_drv_path="$BUILD_DIR/package/feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
     if [ -d "${qca_drv_path%/*}" ] && [ -f "$qca_drv_path" ]; then
@@ -681,7 +687,7 @@ fix_quickstart() {
         echo "正在修复 quickstart..."
         if ! curl -fsSL -o "$file_path" "$url"; then
             echo "错误：从 $url 下载 istore_backend.lua 失败" >&2
-            exit 1
+            return 1
         fi
     fi
 }
@@ -715,6 +721,12 @@ EOF
 }
 
 support_fw4_adg() {
+    # 检查BASE_PATH变量是否定义
+    if [ -z "$BASE_PATH" ]; then
+        echo "错误：BASE_PATH 变量未定义，无法更新AdGuardHome启动脚本" >&2
+        return 1
+    fi
+    
     local src_path="$BASE_PATH/patches/AdGuardHome"
     local dst_path="$BUILD_DIR/package/feeds/small8/luci-app-adguardhome/root/etc/init.d/AdGuardHome"
     # 验证源路径是否文件存在且是文件，目标路径目录存在且脚本路径合法
@@ -722,19 +734,21 @@ support_fw4_adg() {
         # 使用 install 命令替代 cp 以确保权限和备份处理
         install -Dm 755 "$src_path" "$dst_path"
         echo "已更新AdGuardHome启动脚本"
+    else
+        echo "警告：AdGuardHome启动脚本更新失败，源文件不存在或目标路径不正确" >&2
     fi
 }
 
 add_timecontrol() {
-    local timecontrol_dir="$BUILD_DIR/package/luci-app-timecontrol"
-    local repo_url="https://github.com/sirpdboy/luci-app-timecontrol.git"
+    local timecontrol_dir="$BUILD_DIR/package/luci-app-parentcontrol"
+    local repo_url="https://github.com/sirpdboy/luci-app-parentcontrol.git"
     # 删除旧的目录（如果存在）
     rm -rf "$timecontrol_dir" 2>/dev/null
     echo "正在添加 luci-app-timecontrol..."
     if ! git clone --depth 1 "$repo_url" "$timecontrol_dir"; then
-        echo "错误：从 $repo_url 克隆 luci-app-timecontrol 仓库失败" >&2
-        exit 1
-    fi
+            echo "错误：从 $repo_url 克隆 luci-app-parentcontrol 仓库失败" >&2
+            return 1
+        fi
 }
 
 add_gecoosac() {
@@ -744,9 +758,9 @@ add_gecoosac() {
     rm -rf "$gecoosac_dir" 2>/dev/null
     echo "正在添加 openwrt-gecoosac..."
     if ! git clone --depth 1 "$repo_url" "$gecoosac_dir"; then
-        echo "错误：从 $repo_url 克隆 openwrt-gecoosac 仓库失败" >&2
-        exit 1
-    fi
+            echo "错误：从 $repo_url 克隆 openwrt-gecoosac 仓库失败" >&2
+            return 1
+        fi
 }
 
 fix_easytier() {
@@ -759,6 +773,12 @@ fix_easytier() {
 update_geoip() {
     local geodata_path="$BUILD_DIR/package/feeds/small8/v2ray-geodata/Makefile"
     if [ -d "${geodata_path%/*}" ] && [ -f "$geodata_path" ]; then
+        # 检查wget是否安装
+        if ! command -v wget >/dev/null; then
+            echo "错误：wget 命令未找到，无法更新 geoip" >&2
+            return 1
+        fi
+        
         local GEOIP_VER=$(awk -F"=" '/GEOIP_VER:=/ {print $NF}' $geodata_path | grep -oE "[0-9]{1,}")
         if [ -n "$GEOIP_VER" ]; then
             local base_url="https://github.com/v2fly/geoip/releases/download/${GEOIP_VER}"
@@ -831,9 +851,9 @@ update_smartdns() {
     echo "正在更新 smartdns..."
     rm -rf "$SMARTDNS_DIR"
     if ! git clone --depth=1 "$SMARTDNS_REPO" "$SMARTDNS_DIR"; then
-        echo "错误：从 $SMARTDNS_REPO 克隆 smartdns 仓库失败" >&2
-        exit 1
-    fi
+            echo "错误：从 $SMARTDNS_REPO 克隆 smartdns 仓库失败" >&2
+            return 1
+        fi
 
     install -Dm644 "$BASE_PATH/patches/100-smartdns-optimize.patch" "$SMARTDNS_DIR/patches/100-smartdns-optimize.patch"
     sed -i '/define Build\/Compile\/smartdns-ui/,/endef/s/CC=\$(TARGET_CC)/CC="\$(TARGET_CC_NOCACHE)"/' "$SMARTDNS_DIR/Makefile"
@@ -841,9 +861,9 @@ update_smartdns() {
     echo "正在更新 luci-app-smartdns..."
     rm -rf "$LUCI_APP_SMARTDNS_DIR"
     if ! git clone --depth=1 "$LUCI_APP_SMARTDNS_REPO" "$LUCI_APP_SMARTDNS_DIR"; then
-        echo "错误：从 $LUCI_APP_SMARTDNS_REPO 克隆 luci-app-smartdns 仓库失败" >&2
-        exit 1
-    fi
+            echo "错误：从 $LUCI_APP_SMARTDNS_REPO 克隆 luci-app-smartdns 仓库失败" >&2
+            return 1
+        fi
 }
 
 update_diskman() {
@@ -856,7 +876,7 @@ update_diskman() {
 
         if ! git clone --filter=blob:none --no-checkout "$repo_url" diskman; then
             echo "错误：从 $repo_url 克隆 diskman 仓库失败" >&2
-            exit 1
+            return 1
         fi
         cd diskman || return
 
@@ -870,6 +890,8 @@ update_diskman() {
         \rm -rf diskman
         cd "$BUILD_DIR"
 
+        # 更新path变量以指向新克隆的目录
+        path="$BUILD_DIR/feeds/luci/applications/luci-app-diskman"
         sed -i 's/fs-ntfs /fs-ntfs3 /g' "$path/Makefile"
         sed -i '/ntfs-3g-utils /d' "$path/Makefile"
     fi
@@ -883,9 +905,9 @@ add_quickfile() {
     fi
     echo "正在添加 luci-app-quickfile..."
     if ! git clone --depth 1 "$repo_url" "$target_dir"; then
-        echo "错误：从 $repo_url 克隆 luci-app-quickfile 仓库失败" >&2
-        exit 1
-    fi
+            echo "错误：从 $repo_url 克隆 luci-app-quickfile 仓库失败" >&2
+            return 1
+        fi
 
     local makefile_path="$target_dir/quickfile/Makefile"
     if [ -f "$makefile_path" ]; then
@@ -976,10 +998,10 @@ update_argon() {
     echo "正在更新 argon 主题..."
 
     if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
-        echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
-        rm -rf "$tmp_dir"
-        exit 1
-    fi
+            echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
+            rm -rf "$tmp_dir"
+            return 1
+        fi
 
     rm -rf "$dst_theme_path"
     rm -rf "$tmp_dir/.git"
