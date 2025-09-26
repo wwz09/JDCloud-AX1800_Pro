@@ -306,26 +306,28 @@ update_affinity_script() {
     fi
 }
 
-# 通用函数，用于修正 Makefile 中的哈希值
-fix_hash_value() {
-    local makefile_path="$1"
-    local old_hash="$2"
-    local new_hash="$3"
-    local package_name="$4"
+# 通用函数，用于修正 Makefile 中的哈希值 
+() { 
+    local makefile_path="$1" 
+    local old_hash="$2" 
+    local new_hafix_hash_valuesh="$3" 
+    local package_name="$4" 
 
-    if [ -f "$makefile_path" ]; then
-        sed -i "s/$old_hash/$new_hash/g" "$makefile_path"
-        echo "已修正 $package_name 的哈希值。"
+    if [ -f "$makefile_path" ]; then 
+        sed -i "s/$old_hash/$new_hash/g" "$makefile_path" 
+        echo "已修正 $package_name 的哈希值。" 
+    else
+        echo "错误：文件 $makefile_path 不存在，无法修正 $package_name 的哈希值。"
     fi
 }
 
-# 应用所有哈希值修正
-apply_hash_fixes() {
+# 应用所有哈希值修正 
+apply_hash_fixes() { 
     fix_hash_value \
         "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
         "a7edb052fea61418c91c7a052f7eb1478fe6d844aec5e3eda0f2fcf82de29a10" \
         "b11e175970e08115fe3b0d7a543fa8d3a6239d3c24eeecfd8cfd2fef3f52c6c9" \
-        "smartdns"
+        "smartdns" 
 
     fix_hash_value \
         "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
@@ -333,6 +335,13 @@ apply_hash_fixes() {
         "ab7d303a538871ae4a70ead2e90d35e24fcc36bc20f5b6c5d963a3e283ea43b1" \
         "smartdns"    
 }
+
+# 如果脚本直接运行，则执行修复
+if [[ "$0" == "$BASH_SOURCE" ]]; then
+    # 设置构建目录（根据实际情况修改）
+    BUILD_DIR="/home/runner/work/JDCloud-AX1800_Pro/JDCloud-AX1800_Pro/action_build"
+    apply_hash_fixes
+fi
 
 update_ath11k_fw() {
     local makefile="$BUILD_DIR/package/firmware/ath11k-firmware/Makefile"
