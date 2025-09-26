@@ -307,15 +307,15 @@ update_affinity_script() {
 }
 
 # 通用函数，用于修正 Makefile 中的哈希值 
-() { 
-    local makefile_path="$1" 
-    local old_hash="$2" 
-    local new_hafix_hash_valuesh="$3" 
-    local package_name="$4" 
+fix_hash_value() {
+    local makefile_path="$1"
+    local old_hash="$2"
+    local new_hash="$3"
+    local package_name="$4"
 
-    if [ -f "$makefile_path" ]; then 
-        sed -i "s/$old_hash/$new_hash/g" "$makefile_path" 
-        echo "已修正 $package_name 的哈希值。" 
+    if [ -f "$makefile_path" ]; then
+        sed -i "s/$old_hash/$new_hash/g" "$makefile_path"
+        echo "已修正 $package_name 的哈希值。"
     else
         echo "错误：文件 $makefile_path 不存在，无法修正 $package_name 的哈希值。"
     fi
