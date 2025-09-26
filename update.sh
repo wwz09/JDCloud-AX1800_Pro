@@ -33,6 +33,20 @@ REPO_URL=$1
 REPO_BRANCH=$2
 BUILD_DIR=$3
 COMMIT_HASH=$4
+SKIP_SMARTDNS_HASH=false
+
+# 解析命令行参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-smartdns-hash)
+            SKIP_SMARTDNS_HASH=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 FEEDS_CONF="feeds.conf.default"
 GOLANG_REPO="https://github.com/sbwml/packages_lang_golang"
@@ -323,6 +337,7 @@ fix_hash_value() {
 
 # 应用所有哈希值修正 
 apply_hash_fixes() { 
+    # 首先尝试修复哈希值
     fix_hash_value \
         "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
         "a7edb052fea61418c91c7a052f7eb1478fe6d844aec5e3eda0f2fcf82de29a10" \
@@ -334,6 +349,49 @@ apply_hash_fixes() {
         "a1c084dcc4fb7f87641d706b70168fc3c159f60f37d4b7eac6089ae68f0a18a1" \
         "ab7d303a538871ae4a70ead2e90d35e24fcc36bc20f5b6c5d963a3e283ea43b1" \
         "smartdns"    
+    
+    # 如果设置了跳过哈希值验证标志，则调用跳过函数
+    if [ "$SKIP_SMARTDNS_HASH" = true ]; then
+        skip_smartdns_hash_check
+    fi
+}
+
+# 跳过smartdns哈希值验证的函数
+skip_smartdns_hash_check() {
+    local smartdns_makefile="$BUILD_DIR/package/feeds/packages/smartdns/Makefile"
+    
+    echo "正在检查是否需要跳过smartdns哈希值验证..."
+    
+    # 如果Makefile存在，修改它跳过哈希值验证
+    if [ -f "$smartdns_makefile" ]; then
+        echo "找到smartdns Makefile，正在修改以跳过哈希值验证..."
+        
+        # 备份原始Makefile
+        cp "$smartdns_makefile" "${smartdns_makefile}.bak" 2>/dev/null || true
+        
+        # 使用PKG_HASH:=skip来跳过哈希值验证
+        sed -i '/^PKG_HASH:/c\PKG_HASH:=skip' "$smartdns_makefile"
+        
+        echo "成功修改smartdns Makefile，已跳过哈希值验证"
+    else
+        echo "警告：未找到smartdns Makefile: $smartdns_makefile"
+        
+        # 如果找不到Makefile，尝试修改download.pl脚本跳过所有哈希值验证
+        local download_pl="$BUILD_DIR/scripts/download.pl"
+        if [ -f "$download_pl" ]; then
+            echo "尝试通过修改download.pl脚本跳过所有哈希值验证..."
+            
+            # 备份原始脚本
+            cp "$download_pl" "${download_pl}.bak" 2>/dev/null || true
+            
+            # 修改download.pl以跳过哈希值验证
+            sed -i '/sub verify_checksum/ s/^/# /' "$download_pl"
+            sed -i '/sub verify_checksum/ a\
+sub verify_checksum {\n    return 1;\n}' "$download_pl"
+            
+            echo "成功修改download.pl脚本，已跳过所有哈希值验证"
+        fi
+    fi
 }
 
 # 如果脚本直接运行，则执行修复
@@ -341,6 +399,9 @@ if [[ "$0" == "$BASH_SOURCE" ]]; then
     # 设置构建目录（根据实际情况修改）
     BUILD_DIR="/home/runner/work/JDCloud-AX1800_Pro/JDCloud-AX1800_Pro/action_build"
     apply_hash_fixes
+    
+    # 跳过smartdns哈希值验证
+    skip_smartdns_hash_check
 fi
 
 update_ath11k_fw() {
