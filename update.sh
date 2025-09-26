@@ -34,20 +34,6 @@ REPO_URL=$1
 REPO_BRANCH=$2
 BUILD_DIR=$3
 COMMIT_HASH=$4
-SKIP_SMARTDNS_HASH=false
-
-# 解析命令行参数
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --skip-smartdns-hash)
-            SKIP_SMARTDNS_HASH=true
-            shift
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
 
 FEEDS_CONF="feeds.conf.default"
 GOLANG_REPO="https://github.com/sbwml/packages_lang_golang"
@@ -331,79 +317,24 @@ fix_hash_value() {
     if [ -f "$makefile_path" ]; then
         sed -i "s/$old_hash/$new_hash/g" "$makefile_path"
         echo "已修正 $package_name 的哈希值。"
-    else
-        echo "错误：文件 $makefile_path 不存在，无法修正 $package_name 的哈希值。"
     fi
 }
 
-# 应用所有哈希值修正 
-apply_hash_fixes() { 
-    # 首先尝试修复哈希值
-    fix_hash_value \
-        "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
-        "a7edb052fea61418c91c7a052f7eb1478fe6d844aec5e3eda0f2fcf82de29a10" \
-        "b11e175970e08115fe3b0d7a543fa8d3a6239d3c24eeecfd8cfd2fef3f52c6c9" \
-        "smartdns" 
+# 应用所有哈希值修正
+apply_hash_fixes() {
+    echo "apply_hash_fixes"
+    #fix_hash_value \
+    #    "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
+    #    "a7edb052fea61418c91c7a052f7eb1478fe6d844aec5e3eda0f2fcf82de29a10" \
+    #    "b11e175970e08115fe3b0d7a543fa8d3a6239d3c24eeecfd8cfd2fef3f52c6c9" \
+    #    "smartdns"
 
-    fix_hash_value \
-        "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
-        "a1c084dcc4fb7f87641d706b70168fc3c159f60f37d4b7eac6089ae68f0a18a1" \
-        "ab7d303a538871ae4a70ead2e90d35e24fcc36bc20f5b6c5d963a3e283ea43b1" \
-        "smartdns"    
-    
-    # 如果设置了跳过哈希值验证标志，则调用跳过函数
-    if [ "$SKIP_SMARTDNS_HASH" = true ]; then
-        skip_smartdns_hash_check
-    fi
+    #fix_hash_value \
+    #    "$BUILD_DIR/package/feeds/packages/smartdns/Makefile" \
+    #    "a1c084dcc4fb7f87641d706b70168fc3c159f60f37d4b7eac6089ae68f0a18a1" \
+    #    "ab7d303a538871ae4a70ead2e90d35e24fcc36bc20f5b6c5d963a3e283ea43b1" \
+    #    "smartdns"    
 }
-
-# 跳过smartdns哈希值验证的函数
-skip_smartdns_hash_check() {
-    local smartdns_makefile="$BUILD_DIR/package/feeds/packages/smartdns/Makefile"
-    
-    echo "正在检查是否需要跳过smartdns哈希值验证..."
-    
-    # 如果Makefile存在，修改它跳过哈希值验证
-    if [ -f "$smartdns_makefile" ]; then
-        echo "找到smartdns Makefile，正在修改以跳过哈希值验证..."
-        
-        # 备份原始Makefile
-        cp "$smartdns_makefile" "${smartdns_makefile}.bak" 2>/dev/null || true
-        
-        # 使用PKG_HASH:=skip来跳过哈希值验证
-        sed -i '/^PKG_HASH:/c\PKG_HASH:=skip' "$smartdns_makefile"
-        
-        echo "成功修改smartdns Makefile，已跳过哈希值验证"
-    else
-        echo "警告：未找到smartdns Makefile: $smartdns_makefile"
-        
-        # 如果找不到Makefile，尝试修改download.pl脚本跳过所有哈希值验证
-        local download_pl="$BUILD_DIR/scripts/download.pl"
-        if [ -f "$download_pl" ]; then
-            echo "尝试通过修改download.pl脚本跳过所有哈希值验证..."
-            
-            # 备份原始脚本
-            cp "$download_pl" "${download_pl}.bak" 2>/dev/null || true
-            
-            # 修改download.pl以跳过哈希值验证
-            sed -i '/sub verify_checksum/ s/^/# /' "$download_pl"
-            sed -i '/sub verify_checksum/ a\
-sub verify_checksum {\n    return 1;\n}' "$download_pl"
-            
-            echo "成功修改download.pl脚本，已跳过所有哈希值验证"
-        fi
-    fi
-}
-
-# 如果脚本直接运行，则执行修复
-if [[ "$0" == "$BASH_SOURCE" ]]; then
-    # 设置构建目录（根据实际情况修改）
-    BUILD_DIR="/home/runner/work/JDCloud-AX1800_Pro/JDCloud-AX1800_Pro/action_build"
-    apply_hash_fixes
-    
-    # 跳过smartdns哈希值验证
-    skip_smartdns_hash_check
-fi
 
 update_ath11k_fw() {
     local makefile="$BUILD_DIR/package/firmware/ath11k-firmware/Makefile"
@@ -717,12 +648,6 @@ EOF
 
 # 更新启动顺序
 function update_script_priority() {
-    # 检查BUILD_DIR变量是否定义
-    if [ -z "$BUILD_DIR" ]; then
-        echo "错误：BUILD_DIR 变量未定义，无法更新脚本启动顺序" >&2
-        return 1
-    fi
-    
     # 更新qca-nss驱动的启动顺序
     local qca_drv_path="$BUILD_DIR/package/feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
     if [ -d "${qca_drv_path%/*}" ] && [ -f "$qca_drv_path" ]; then
@@ -758,7 +683,7 @@ fix_quickstart() {
         echo "正在修复 quickstart..."
         if ! curl -fsSL -o "$file_path" "$url"; then
             echo "错误：从 $url 下载 istore_backend.lua 失败" >&2
-            return 1
+            exit 1
         fi
     fi
 }
@@ -791,25 +716,6 @@ EOF
     fi
 }
 
-support_fw4_adg() {
-    # 检查BASE_PATH变量是否定义
-    if [ -z "$BASE_PATH" ]; then
-        echo "错误：BASE_PATH 变量未定义，无法更新AdGuardHome启动脚本" >&2
-        return 1
-    fi
-    
-    local src_path="$BASE_PATH/patches/AdGuardHome"
-    local dst_path="$BUILD_DIR/package/feeds/small8/luci-app-adguardhome/root/etc/init.d/AdGuardHome"
-    # 验证源路径是否文件存在且是文件，目标路径目录存在且脚本路径合法
-    if [ -f "$src_path" ] && [ -d "${dst_path%/*}" ] && [ -f "$dst_path" ]; then
-        # 使用 install 命令替代 cp 以确保权限和备份处理
-        install -Dm 755 "$src_path" "$dst_path"
-        echo "已更新AdGuardHome启动脚本"
-    else
-        echo "警告：AdGuardHome启动脚本更新失败，源文件不存在或目标路径不正确" >&2
-    fi
-}
-
 add_timecontrol() {
     local timecontrol_dir="$BUILD_DIR/package/luci-app-parentcontrol"
     local repo_url="https://github.com/sirpdboy/luci-app-parentcontrol.git"
@@ -830,7 +736,20 @@ add_gecoosac() {
     echo "正在添加 openwrt-gecoosac..."
     if ! git clone --depth 1 "$repo_url" "$gecoosac_dir"; then
             echo "错误：从 $repo_url 克隆 openwrt-gecoosac 仓库失败" >&2
-            return 1
+        exit 1
+    fi
+}
+
+update_adguardhome() {
+    local adguardhome_dir="$BUILD_DIR/package/feeds/small8/luci-app-adguardhome"
+    local repo_url="https://wget.la/https://github.com/ZqinKing/luci-app-adguardhome.git"
+
+    echo "正在更新 luci-app-adguardhome..."
+    rm -rf "$adguardhome_dir" 2>/dev/null
+
+    if ! git clone --depth 1 "$repo_url" "$adguardhome_dir"; then
+        echo "错误：从 $repo_url 克隆 luci-app-adguardhome 仓库失败" >&2
+        exit 1
         fi
 }
 
@@ -844,12 +763,6 @@ fix_easytier() {
 update_geoip() {
     local geodata_path="$BUILD_DIR/package/feeds/small8/v2ray-geodata/Makefile"
     if [ -d "${geodata_path%/*}" ] && [ -f "$geodata_path" ]; then
-        # 检查wget是否安装
-        if ! command -v wget >/dev/null; then
-            echo "错误：wget 命令未找到，无法更新 geoip" >&2
-            return 1
-        fi
-        
         local GEOIP_VER=$(awk -F"=" '/GEOIP_VER:=/ {print $NF}' $geodata_path | grep -oE "[0-9]{1,}")
         if [ -n "$GEOIP_VER" ]; then
             local base_url="https://github.com/v2fly/geoip/releases/download/${GEOIP_VER}"
@@ -922,9 +835,9 @@ update_smartdns() {
     echo "正在更新 smartdns..."
     rm -rf "$SMARTDNS_DIR"
     if ! git clone --depth=1 "$SMARTDNS_REPO" "$SMARTDNS_DIR"; then
-            echo "错误：从 $SMARTDNS_REPO 克隆 smartdns 仓库失败" >&2
-            return 1
-        fi
+        echo "错误：从 $SMARTDNS_REPO 克隆 smartdns 仓库失败" >&2
+        exit 1
+    fi
 
     install -Dm644 "$BASE_PATH/patches/100-smartdns-optimize.patch" "$SMARTDNS_DIR/patches/100-smartdns-optimize.patch"
     sed -i '/define Build\/Compile\/smartdns-ui/,/endef/s/CC=\$(TARGET_CC)/CC="\$(TARGET_CC_NOCACHE)"/' "$SMARTDNS_DIR/Makefile"
@@ -932,9 +845,9 @@ update_smartdns() {
     echo "正在更新 luci-app-smartdns..."
     rm -rf "$LUCI_APP_SMARTDNS_DIR"
     if ! git clone --depth=1 "$LUCI_APP_SMARTDNS_REPO" "$LUCI_APP_SMARTDNS_DIR"; then
-            echo "错误：从 $LUCI_APP_SMARTDNS_REPO 克隆 luci-app-smartdns 仓库失败" >&2
-            return 1
-        fi
+        echo "错误：从 $LUCI_APP_SMARTDNS_REPO 克隆 luci-app-smartdns 仓库失败" >&2
+        exit 1
+    fi
 }
 
 update_diskman() {
@@ -947,7 +860,7 @@ update_diskman() {
 
         if ! git clone --filter=blob:none --no-checkout "$repo_url" diskman; then
             echo "错误：从 $repo_url 克隆 diskman 仓库失败" >&2
-            return 1
+            exit 1
         fi
         cd diskman || return
 
@@ -961,8 +874,6 @@ update_diskman() {
         \rm -rf diskman
         cd "$BUILD_DIR"
 
-        # 更新path变量以指向新克隆的目录
-        path="$BUILD_DIR/feeds/luci/applications/luci-app-diskman"
         sed -i 's/fs-ntfs /fs-ntfs3 /g' "$path/Makefile"
         sed -i '/ntfs-3g-utils /d' "$path/Makefile"
     fi
@@ -976,9 +887,9 @@ add_quickfile() {
     fi
     echo "正在添加 luci-app-quickfile..."
     if ! git clone --depth 1 "$repo_url" "$target_dir"; then
-            echo "错误：从 $repo_url 克隆 luci-app-quickfile 仓库失败" >&2
-            return 1
-        fi
+        echo "错误：从 $repo_url 克隆 luci-app-quickfile 仓库失败" >&2
+        exit 1
+    fi
 
     local makefile_path="$target_dir/quickfile/Makefile"
     if [ -f "$makefile_path" ]; then
@@ -1069,10 +980,10 @@ update_argon() {
     echo "正在更新 argon 主题..."
 
     if ! git clone --depth 1 "$repo_url" "$tmp_dir"; then
-            echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
-            rm -rf "$tmp_dir"
-            return 1
-        fi
+        echo "错误：从 $repo_url 克隆 argon 主题仓库失败" >&2
+        rm -rf "$tmp_dir"
+        exit 1
+    fi
 
     rm -rf "$dst_theme_path"
     rm -rf "$tmp_dir/.git"
@@ -1127,7 +1038,7 @@ main() {
     update_uwsgi_limit_as
     update_argon
     install_feeds
-    support_fw4_adg
+    update_adguardhome
     update_script_priority
     fix_easytier
     update_geoip
@@ -1135,7 +1046,7 @@ main() {
     update_package "containerd" "releases" "v1.7.27"
     update_package "docker" "tags" "v28.2.2"
     update_package "dockerd" "releases" "v28.2.2"
-    apply_hash_fixes # 调用哈希修正函数
+    # apply_hash_fixes # 调用哈希修正函数
 }
 
 main "$@"
