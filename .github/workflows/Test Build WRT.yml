@@ -1,0 +1,152 @@
+name: Test Build WRT
+run-name: Build - ${{ inputs.model }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        required: true
+        description: Device Model
+        type: choice
+        default: jdcloud_ipq60xx_immwrt
+        options:
+          - aliyun_ap8220_immwrt
+          - cmcc_rax3000m_immwrt
+          - jdcloud_ax6000_immwrt
+          - jdcloud_ipq60xx_immwrt
+          - jdcloud_ipq60xx_libwrt
+          - qihoo_360v6_immwrt
+          - redmi_ax5_immwrt
+          - redmi_ax6_immwrt
+          - redmi_ax6_libwrt
+          - redmi_ax6000_immwrt21
+          - zn_m2_immwrt
+          - zn_m2_libwrt
+          - x64_immwrt
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Free disk space
+        uses: sbwml/actions@free-disk
+
+      - name: Build System Setup
+        run: |
+          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          sudo -E apt -yqq install dos2unix
+          sudo -E apt -yqq install libfuse-dev
+          sudo -E apt -yqq autoremove --purge
+          sudo -E apt -yqq autoclean
+          sudo -E apt -yqq clean
+          sudo -E systemctl daemon-reload
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Build Date and Timezone
+        run: |
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+          export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
+          export SHORT_DATE=$(TZ=UTC-8 date +"%y%m%d")
+          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
+          echo "SHORT_DATE=$SHORT_DATE" >> $GITHUB_ENV
+
+      - name: Pre Clone
+        run: ./pre_clone_action.sh ${{ inputs.model }}
+
+      - name: Cache Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./action_build/.ccache
+            ./action_build/staging_dir
+          key: ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}-${{ env.BUILD_DATE }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}-
+
+      - name: Refresh the cache
+        run: |
+          if [ -d "./action_build/staging_dir" ]; then
+            find "./action_build/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
+                find "$dir" -type f -exec touch {} +
+            done
+          fi
+
+      - name: Build Firmware
+        run: ./build.sh ${{ inputs.model }}
+
+      - name: Generate Configuration Summary
+        run: |
+          # 输出配置文件到firmware目录
+          if [ -f "./action_build/bin/targets/*/*/*.config" ]; then
+            cp ./action_build/bin/targets/*/*/*.config ./firmware/config.txt
+          fi
+          
+          # 生成LUCI插件列表
+          echo "## 编译到固件的LUCI插件列表" > ./firmware/luci_plugins.md
+          echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')" >> ./firmware/luci_plugins.md
+          echo "设备型号: ${{ inputs.model }}" >> ./firmware/luci_plugins.md
+          echo "" >> ./firmware/luci_plugins.md
+          
+          if [ -d "./action_build/bin/targets" ]; then
+            find ./action_build/bin/targets -name "*.ipk" | grep -i luci | sed 's/.*\///' | sort >> ./firmware/luci_plugins.md
+          else
+            echo "未找到编译好的IPK包，无法生成插件列表" >> ./firmware/luci_plugins.md
+          fi
+          
+          # 精减固件名称
+          cd ./firmware
+          for file in *.*;
+          do
+            if [[ "$file" != "config.txt" && "$file" != "luci_plugins.md" ]]; then
+              new_name="${{ inputs.model }}_${{ env.SHORT_DATE }}${file##*$BUILD_DATE}"
+              mv "$file" "$new_name"
+              echo "重命名: $file -> $new_name"
+            fi
+          done
+          cd -
+
+      - name: Delete Old Cache
+        run: |
+          # 获取缓存列表并删除
+          gh cache list --key ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
+            gh cache delete "$key"
+          done
+          # 输出缓存状态
+          echo "========cache status========"
+          echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
+          echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
+
+      - name: Machine Information
+        run: |
+          echo "=============================================="
+          lscpu | grep -E "name|Core|Thread"
+          echo "=============================================="
+          df -h
+          echo "=============================================="
+
+      - name: Upload Firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SHORT_DATE }}_${{ inputs.model }}
+          path: ./firmware/*.*
+          retention-days: 90
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.SHORT_DATE }}_${{ inputs.model }}
+          name: ${{ inputs.model }} - ${{ env.SHORT_DATE }}
+          draft: false
+          prerelease: false
+          files: ./firmware/*.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
