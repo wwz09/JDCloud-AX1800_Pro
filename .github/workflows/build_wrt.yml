@@ -105,3 +105,15 @@ jobs:
         with:
           name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           path: ./firmware/*.*
+          retention-days: 90
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
+          name: ${{ inputs.model }} - ${{ env.BUILD_DATE }}
+          draft: false
+          prerelease: false
+          files: ./firmware/*.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
