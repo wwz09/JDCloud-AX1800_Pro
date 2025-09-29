@@ -10,19 +10,11 @@ on:
         type: choice
         default: jdcloud_ipq60xx_immwrt
         options:
-          - aliyun_ap8220_immwrt
           - cmcc_rax3000m_immwrt
-          - jdcloud_ax6000_immwrt
           - jdcloud_ipq60xx_immwrt
           - jdcloud_ipq60xx_libwrt
           - qihoo_360v6_immwrt
-          - redmi_ax5_immwrt
-          - redmi_ax6_immwrt
-          - redmi_ax6_libwrt
-          - redmi_ax6000_immwrt21
-          - zn_m2_immwrt
-          - zn_m2_libwrt
-          - x64_immwrt
+  
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -87,34 +79,66 @@ jobs:
 
       - name: Generate Configuration Summary
         run: |
-          # 输出配置文件到firmware目录
-          if [ -f "./action_build/bin/targets/*/*/*.config" ]; then
-            cp ./action_build/bin/targets/*/*/*.config ./firmware/config.txt
-          fi
+          # 创建firmware目录（如果不存在）
+          mkdir -p ./firmware
           
-          # 生成LUCI插件列表
-          echo "## 编译到固件的LUCI插件列表" > ./firmware/luci_plugins.md
-          echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')" >> ./firmware/luci_plugins.md
-          echo "设备型号: ${{ inputs.model }}" >> ./firmware/luci_plugins.md
-          echo "" >> ./firmware/luci_plugins.md
-          
-          if [ -d "./action_build/bin/targets" ]; then
-            find ./action_build/bin/targets -name "*.ipk" | grep -i luci | sed 's/.*\///' | sort >> ./firmware/luci_plugins.md
+          # 输出配置文件到firmware目录 - 使用find确保正确检查文件存在
+          config_file=$(find ./action_build/bin/targets -name "*.config" 2>/dev/null | head -n 1)
+          if [ -n "$config_file" ]; then
+            cp "$config_file" ./firmware/config.txt
+            echo "已复制配置文件: $config_file -> ./firmware/config.txt"
           else
-            echo "未找到编译好的IPK包，无法生成插件列表" >> ./firmware/luci_plugins.md
+            echo "警告: 未找到配置文件" > ./firmware/config.txt
           fi
           
-          # 精减固件名称
-          cd ./firmware
-          for file in *.*;
-          do
-            if [[ "$file" != "config.txt" && "$file" != "luci_plugins.md" ]]; then
-              new_name="${{ inputs.model }}_${{ env.SHORT_DATE }}${file##*$BUILD_DATE}"
-              mv "$file" "$new_name"
-              echo "重命名: $file -> $new_name"
+          # 生成LUCI插件列表 - 改进格式和错误处理
+          { 
+            echo "## 编译到固件的LUCI插件列表"
+            echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "设备型号: ${{ inputs.model }}"
+            echo ""  
+            
+            # 优先从manifest文件获取插件信息
+            manifest_file=$(find ./firmware -name "*.manifest" 2>/dev/null | head -n 1)
+            if [ -n "$manifest_file" ]; then
+              echo "### 从固件清单中提取的插件（已安装到固件）:" 
+              echo ""  
+              grep -oP "luci-app(-[a-zA-Z0-9_]{1,}){1,}" "$manifest_file" | sort | uniq
+              echo ""  
+            fi
+            
+            # 同时从IPK文件获取可用插件列表
+            if [ -d "./action_build/bin/targets" ]; then
+              echo "### 编译生成的插件IPK包:" 
+              echo ""  
+              find ./action_build/bin/targets -name "*.ipk" | grep -i luci | sed 's/.*\///' | sort
+            else
+              echo "未找到编译好的IPK包目录"
+            fi
+          } > ./firmware/luci_plugins.md
+          
+          # 精减固件名称 - 直接使用设备名命名（无需切换目录）
+          for file in ./firmware/*.*; do
+            # 只处理文件，不处理目录
+            [ -f "$file" ] || continue
+            
+            # 获取文件名（不含路径）
+            filename=$(basename "$file")
+            
+            # 跳过已生成的配置文件和插件列表
+            if [[ "$filename" != "config.txt" && "$filename" != "luci_plugins.md" ]]; then
+              # 获取文件扩展名
+              extension="${filename##*.}"
+              # 直接使用设备名命名
+              new_name="./firmware/${{ inputs.model }}.$extension"
+              
+              # 避免文件覆盖
+              if [ "$file" != "$new_name" ]; then
+                mv "$file" "$new_name"
+                echo "重命名固件: $filename -> ${{ inputs.model }}.$extension"
+              fi
             fi
           done
-          cd -
 
       - name: Delete Old Cache
         run: |
@@ -147,7 +171,7 @@ jobs:
           echo "云编译发布" > release_body.txt
           echo "源码：${{ env.BUILD_SRC }}" >> release_body.txt
           echo "Kernel: ${{ env.KVER }}" >> release_body.txt
-          echo "WIFI密码: abc5124937," >> release_body.txt
+          echo "WIFI密码: " >> release_body.txt
           echo "LAN地址: 192.168.2.1" >> release_body.txt
           echo "插件：" >> release_body.txt
           echo "$(grep -oP "luci-app(-[a-zA-Z0-9]{1,}){1,}" ./firmware/*.manifest | awk -F":" '{print $NF}')" >> release_body.txt
