@@ -99,3 +99,20 @@ jobs:
         with:
           name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           path: ./firmware/*.*
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: v${{ env.BUILD_DATE }}_${{ inputs.model }}
+          name: Firmware ${{ inputs.model }} - ${{ env.BUILD_DATE }}
+          body: |
+            # Firmware Release
+            - Device: ${{ inputs.model }}
+            - Build Date: ${{ env.BUILD_DATE }}
+            - Build OS: ${{ matrix.os }}
+            - Build Status: Success
+          artifacts: ./firmware/*.*
+          draft: false
+          prerelease: false
+          allowUpdates: true
