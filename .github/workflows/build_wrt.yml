@@ -58,11 +58,11 @@ jobs:
         run: |
           # 读取配置文件
           if [ -f "release_config.yml" ]; then
-            export SOURCE_CODE=$(yq e '.release.source_code' release_config.yml)
-            export KERNEL_VERSION=$(yq e '.release.kernel_version' release_config.yml)
-            export WIFI_PASSWORD=$(yq e '.release.wifi_password' release_config.yml)
-            export LAN_ADDRESS=$(yq e '.release.lan_address' release_config.yml)
-            export PLUGINS=$(yq e '.release.plugins[]' release_config.yml | tr '\n' '\n            ')
+            SOURCE_CODE=$(yq e '.release.source_code' release_config.yml)
+            KERNEL_VERSION=$(yq e '.release.kernel_version' release_config.yml)
+            WIFI_PASSWORD=$(yq e '.release.wifi_password' release_config.yml)
+            LAN_ADDRESS=$(yq e '.release.lan_address' release_config.yml)
+            PLUGINS=$(yq e '.release.plugins[]' release_config.yml | awk '{print "            " $0}' | tr '\n' '\\n')
             
             # 设置环境变量
             echo "SOURCE_CODE=$SOURCE_CODE" >> $GITHUB_ENV
@@ -76,7 +76,7 @@ jobs:
             echo "KERNEL_VERSION=6.6.126" >> $GITHUB_ENV
             echo "WIFI_PASSWORD=12345678" >> $GITHUB_ENV
             echo "LAN_ADDRESS=192.168.1.1" >> $GITHUB_ENV
-            echo "PLUGINS=luci-app-adguardhome\n            luci-app-argon-config\n            luci-app-autoreboot\n            luci-app-firewall\n            luci-app-homerproxy\n            luci-app-istorex\n            luci-app-lucky\n            luci-app-package-manager\n            luci-app-quickstart\n            luci-app-samba4\n            luci-app-smartdns\n            luci-app-store\n            luci-app-tyd\n            luci-app-upnp\n            luci-app-vlmcsd\n            luci-app-wol" >> $GITHUB_ENV
+            echo "PLUGINS=            luci-app-adguardhome\\n            luci-app-argon-config\\n            luci-app-autoreboot\\n            luci-app-firewall\\n            luci-app-homerproxy\\n            luci-app-istorex\\n            luci-app-lucky\\n            luci-app-package-manager\\n            luci-app-quickstart\\n            luci-app-samba4\\n            luci-app-smartdns\\n            luci-app-store\\n            luci-app-tyd\\n            luci-app-upnp\\n            luci-app-vlmcsd\\n            luci-app-wol" >> $GITHUB_ENV
           fi
 
       - name: Pre Clone
