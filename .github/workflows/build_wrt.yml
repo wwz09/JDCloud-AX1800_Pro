@@ -62,21 +62,18 @@ jobs:
             KERNEL_VERSION=$(yq e '.release.kernel_version' release_config.yml)
             WIFI_PASSWORD=$(yq e '.release.wifi_password' release_config.yml)
             LAN_ADDRESS=$(yq e '.release.lan_address' release_config.yml)
-            PLUGINS=$(yq e '.release.plugins[]' release_config.yml | awk '{print "            " $0}' | tr '\n' '\\n')
             
             # 设置环境变量
             echo "SOURCE_CODE=$SOURCE_CODE" >> $GITHUB_ENV
             echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_ENV
             echo "WIFI_PASSWORD=$WIFI_PASSWORD" >> $GITHUB_ENV
             echo "LAN_ADDRESS=$LAN_ADDRESS" >> $GITHUB_ENV
-            echo "PLUGINS=$PLUGINS" >> $GITHUB_ENV
           else
             # 使用默认值
             echo "SOURCE_CODE=https://github.com/immortalwrt/immortalwrt.git" >> $GITHUB_ENV
             echo "KERNEL_VERSION=6.6.126" >> $GITHUB_ENV
             echo "WIFI_PASSWORD=12345678" >> $GITHUB_ENV
             echo "LAN_ADDRESS=192.168.1.1" >> $GITHUB_ENV
-            echo "PLUGINS=            luci-app-adguardhome\\n            luci-app-argon-config\\n            luci-app-autoreboot\\n            luci-app-firewall\\n            luci-app-homerproxy\\n            luci-app-istorex\\n            luci-app-lucky\\n            luci-app-package-manager\\n            luci-app-quickstart\\n            luci-app-samba4\\n            luci-app-smartdns\\n            luci-app-store\\n            luci-app-tyd\\n            luci-app-upnp\\n            luci-app-vlmcsd\\n            luci-app-wol" >> $GITHUB_ENV
           fi
 
       - name: Pre Clone
@@ -206,8 +203,7 @@ jobs:
           if [ -n "$manifest_file" ]; then
             grep -oP "luci-app(-[a-zA-Z0-9_]{1,}){1,}" "$manifest_file" | sort | uniq | awk '{print "            " $0}' >> release_body.txt
           else
-            # 如果没有manifest文件，使用配置文件中的插件列表
-            echo "${{ env.PLUGINS }}" >> release_body.txt
+            echo "            未找到插件信息" >> release_body.txt
           fi
 
       - name: Create GitHub Release
