@@ -107,11 +107,28 @@ jobs:
           tag: v${{ env.BUILD_DATE }}_${{ inputs.model }}
           name: Firmware ${{ inputs.model }} - ${{ env.BUILD_DATE }}
           body: |
-            # Firmware Release
-            - Device: ${{ inputs.model }}
-            - Build Date: ${{ env.BUILD_DATE }}
-            - Build OS: ${{ matrix.os }}
-            - Build Status: Success
+            云编译发布
+            源码: https://github.com/immortalwrt/immortalwrt.git
+            Kernel: 6.6.126
+            WiFi密码: 12345678
+            LAN地址: 192.168.1.1
+            插件:
+            luci-app-adguardhome
+            luci-app-argon-config
+            luci-app-autoreboot
+            luci-app-firewall
+            luci-app-homerproxy
+            luci-app-istorex
+            luci-app-lucky
+            luci-app-package-manager
+            luci-app-quickstart
+            luci-app-samba4
+            luci-app-smartdns
+            luci-app-store
+            luci-app-tyd
+            luci-app-upnp
+            luci-app-vlmcsd
+            luci-app-wol
           artifacts: ./firmware/*.*
           draft: false
           prerelease: false
