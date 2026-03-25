@@ -51,6 +51,34 @@ jobs:
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
 
+      - name: Install yq
+        run: sudo apt-get install -y yq
+
+      - name: Read Release Config
+        run: |
+          # 读取配置文件
+          if [ -f "release_config.yml" ]; then
+            export SOURCE_CODE=$(yq e '.release.source_code' release_config.yml)
+            export KERNEL_VERSION=$(yq e '.release.kernel_version' release_config.yml)
+            export WIFI_PASSWORD=$(yq e '.release.wifi_password' release_config.yml)
+            export LAN_ADDRESS=$(yq e '.release.lan_address' release_config.yml)
+            export PLUGINS=$(yq e '.release.plugins[]' release_config.yml | tr '\n' '\n            ')
+            
+            # 设置环境变量
+            echo "SOURCE_CODE=$SOURCE_CODE" >> $GITHUB_ENV
+            echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_ENV
+            echo "WIFI_PASSWORD=$WIFI_PASSWORD" >> $GITHUB_ENV
+            echo "LAN_ADDRESS=$LAN_ADDRESS" >> $GITHUB_ENV
+            echo "PLUGINS=$PLUGINS" >> $GITHUB_ENV
+          else
+            # 使用默认值
+            echo "SOURCE_CODE=https://github.com/immortalwrt/immortalwrt.git" >> $GITHUB_ENV
+            echo "KERNEL_VERSION=6.6.126" >> $GITHUB_ENV
+            echo "WIFI_PASSWORD=12345678" >> $GITHUB_ENV
+            echo "LAN_ADDRESS=192.168.1.1" >> $GITHUB_ENV
+            echo "PLUGINS=luci-app-adguardhome\n            luci-app-argon-config\n            luci-app-autoreboot\n            luci-app-firewall\n            luci-app-homerproxy\n            luci-app-istorex\n            luci-app-lucky\n            luci-app-package-manager\n            luci-app-quickstart\n            luci-app-samba4\n            luci-app-smartdns\n            luci-app-store\n            luci-app-tyd\n            luci-app-upnp\n            luci-app-vlmcsd\n            luci-app-wol" >> $GITHUB_ENV
+          fi
+
       - name: Pre Clone
         run: ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
 
@@ -108,27 +136,12 @@ jobs:
           name: Firmware ${{ inputs.model }} - ${{ env.BUILD_DATE }}
           body: |
             云编译发布
-            源码: https://github.com/immortalwrt/immortalwrt.git
-            Kernel: 6.6.126
-            WiFi密码: 12345678
-            LAN地址: 192.168.1.1
+            源码: ${{ env.SOURCE_CODE }}
+            Kernel: ${{ env.KERNEL_VERSION }}
+            WiFi密码: ${{ env.WIFI_PASSWORD }}
+            LAN地址: ${{ env.LAN_ADDRESS }}
             插件:
-            luci-app-adguardhome
-            luci-app-argon-config
-            luci-app-autoreboot
-            luci-app-firewall
-            luci-app-homerproxy
-            luci-app-istorex
-            luci-app-lucky
-            luci-app-package-manager
-            luci-app-quickstart
-            luci-app-samba4
-            luci-app-smartdns
-            luci-app-store
-            luci-app-tyd
-            luci-app-upnp
-            luci-app-vlmcsd
-            luci-app-wol
+            ${{ env.PLUGINS }}
           artifacts: ./firmware/*.*
           draft: false
           prerelease: false

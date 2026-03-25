@@ -1,0 +1,26 @@
+# 发布配置文件
+release:
+  # 基本信息
+  source_code: https://github.com/immortalwrt/immortalwrt.git
+  kernel_version: 6.6.126
+  wifi_password: 12345678
+  lan_address: 192.168.1.1
+  
+  # 插件列表
+  plugins:
+    - luci-app-adguardhome
+    - luci-app-argon-config
+    - luci-app-autoreboot
+    - luci-app-firewall
+    - luci-app-homerproxy
+    - luci-app-istorex
+    - luci-app-lucky
+    - luci-app-package-manager
+    - luci-app-quickstart
+    - luci-app-samba4
+    - luci-app-smartdns
+    - luci-app-store
+    - luci-app-tyd
+    - luci-app-upnp
+    - luci-app-vlmcsd
+    - luci-app-wol
