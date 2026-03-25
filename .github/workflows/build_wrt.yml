@@ -1,12 +1,12 @@
-name: Build WRT
-run-name: Build - ${{ inputs.model }}
+name: 编译 WRT
+run-name: 编译 - ${{ inputs.model }}
 
 on:
   workflow_dispatch:
     inputs:
       model:
         required: true
-        description: Device Model
+        description: 设备型号
         type: choice
         default: jdcloud_ipq60xx_immwrt
         options:  
@@ -29,10 +29,10 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Free disk space
+      - name: 释放磁盘空间
         uses: sbwml/actions@free-disk
 
-      - name: Build System Setup
+      - name: 构建系统设置
         run: |
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
           sudo -E apt -yqq install dos2unix
@@ -42,19 +42,19 @@ jobs:
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
 
-      - name: Checkout
+      - name: 检出代码
         uses: actions/checkout@v6.0.2
 
-      - name: Set Build Date and Timezone
+      - name: 设置构建日期和时区
         run: |
           sudo -E timedatectl set-timezone "Asia/Shanghai"
           export BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
 
-      - name: Install yq
+      - name: 安装 yq
         run: sudo apt-get install -y yq
 
-      - name: Read Release Config
+      - name: 读取发布配置
         run: |
           # 读取配置文件
           if [ -f "release_config.yml" ]; then
@@ -79,10 +79,10 @@ jobs:
             echo "PLUGINS=luci-app-adguardhome\n            luci-app-argon-config\n            luci-app-autoreboot\n            luci-app-firewall\n            luci-app-homerproxy\n            luci-app-istorex\n            luci-app-lucky\n            luci-app-package-manager\n            luci-app-quickstart\n            luci-app-samba4\n            luci-app-smartdns\n            luci-app-store\n            luci-app-tyd\n            luci-app-upnp\n            luci-app-vlmcsd\n            luci-app-wol" >> $GITHUB_ENV
           fi
 
-      - name: Pre Clone
+      - name: 预克隆
         run: ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
 
-      - name: Cache Dependencies
+      - name: 缓存依赖
         uses: actions/cache@v5.0.2
         with:
           path: |
@@ -92,7 +92,7 @@ jobs:
           restore-keys: |
             ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}-
 
-      - name: Refresh the cache
+      - name: 刷新缓存
         run: |
           if [ -d "./action_build/staging_dir" ]; then
             find "./action_build/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r dir; do
@@ -100,21 +100,21 @@ jobs:
             done
           fi
 
-      - name: Build Firmware
+      - name: 编译固件
         run: ./build.sh ${{ inputs.model }}
 
-      - name: Delete Old Cache
+      - name: 删除旧缓存
         run: |
           # 获取缓存列表并删除
           gh cache list --key ${{ matrix.os }}-${{ hashFiles('**/repo_flag') }}- --json key --jq '.[] | .key' | while read -r key; do
             gh cache delete "$key"
           done
           # 输出缓存状态
-          echo "========cache status========"
+          echo "========缓存状态========"
           echo "ccache: $(du -sh ./action_build/.ccache | cut -f 1)"
           echo "staging: $(du -sh ./action_build/staging_dir | cut -f 1)"
 
-      - name: Machine Information
+      - name: 机器信息
         run: |
           echo "=============================================="
           lscpu | grep -E "name|Core|Thread"
@@ -122,22 +122,22 @@ jobs:
           df -h
           echo "=============================================="
 
-      - name: Upload Firmware
+      - name: 上传固件
         uses: actions/upload-artifact@v6
         with:
           name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
           path: ./firmware/*.*
 
-      - name: Create GitHub Release
+      - name: 创建 GitHub 发布
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: v${{ env.BUILD_DATE }}_${{ inputs.model }}
-          name: Firmware ${{ inputs.model }} - ${{ env.BUILD_DATE }}
+          name: 固件 ${{ inputs.model }} - ${{ env.BUILD_DATE }}
           body: |
             云编译发布
             源码: ${{ env.SOURCE_CODE }}
-            Kernel: ${{ env.KERNEL_VERSION }}
+            内核: ${{ env.KERNEL_VERSION }}
             WiFi密码: ${{ env.WIFI_PASSWORD }}
             LAN地址: ${{ env.LAN_ADDRESS }}
             插件:
