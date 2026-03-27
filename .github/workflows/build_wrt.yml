@@ -42,6 +42,19 @@ jobs:
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
 
+      - name: Create SWAP
+        run: |
+          # 创建4GB SWAP文件
+          sudo fallocate -l 4G /swapfile
+          # 设置权限
+          sudo chmod 600 /swapfile
+          # 格式化SWAP
+          sudo mkswap /swapfile
+          # 启用SWAP
+          sudo swapon /swapfile
+          # 验证SWAP状态
+          free -h
+
       - name: Checkout
         uses: actions/checkout@v6.0.2
 
