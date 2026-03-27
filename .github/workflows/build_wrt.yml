@@ -29,8 +29,41 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Free disk space
-        uses: sbwml/actions@free-disk
+      - name: Free disk space and create SWAP
+        run: |
+          echo -e "\e[1;32mMemory:\e[0m"
+          free -h
+          echo -e "\e[1;32mStorage:\e[0m"
+          df -Th /
+          echo
+          
+          # 清理磁盘空间
+          sudo find /opt -mindepth 1 -maxdepth 1 ! -name "*runner*" -exec rm -rf {} \;
+          sudo rm -rf /usr/local/lib/android \
+           /usr/lib/google-cloud-sdk \
+           /usr/lib/jvm \
+           /usr/lib/{clang-16,clang-17,llvm-16,llvm-17} \
+           /usr/local/aws* \
+           /usr/local/julia* \
+           /usr/local/share/{chromium,powershell,vcpkg} \
+           /usr/share/dotnet \
+           /usr/share/swift
+          
+          # 清理并重新创建SWAP
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          echo "::group::  Create SWAP"
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "::endgroup::"
+          
+          # 验证SWAP状态
+          free -h
+          
+          # 清理缓存
+          sudo sysctl -w vm.drop_caches=3
 
       - name: Build System Setup
         run: |
@@ -41,19 +74,6 @@ jobs:
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
           sudo -E systemctl daemon-reload
-
-      - name: Create SWAP
-        run: |
-          # 创建4GB SWAP文件
-          sudo fallocate -l 4G /swapfile
-          # 设置权限
-          sudo chmod 600 /swapfile
-          # 格式化SWAP
-          sudo mkswap /swapfile
-          # 启用SWAP
-          sudo swapon /swapfile
-          # 验证SWAP状态
-          free -h
 
       - name: Checkout
         uses: actions/checkout@v6.0.2
