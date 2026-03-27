@@ -83,6 +83,11 @@ gemtek_w1701k_wifi_cfg() {
     uci set wireless.radio2.disabled='1'
 }
 
+link_nn6000_wifi_cfg() {
+    configure_wifi 0 149 EHT80 19 'Link_NN6000_5G' '12345678'
+	configure_wifi 1 1 EHT20 19 'Link_NN6000' '12345678'
+}
+
 case "${board_name}" in
 jdcloud,ax1800-pro | \
 	jdcloud,re-ss-01)
@@ -117,6 +122,9 @@ linksys,mx4200v1 | \
 gemtek,w1701k)
 	gemtek_w1701k_wifi_cfg
 	;;
+link,nn6000-v2)
+    link_nn6000_wifi_cfg
+    ;;
 *)
 	exit 0
 	;;
