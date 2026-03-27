@@ -36,8 +36,8 @@ jobs:
           
           # 遍历工作流，获取状态
           echo "开始检查工作流记录状态..."
-          echo "备份目录: ${{ env.BACKUP_DIR }}"
-          mkdir -p "${{ env.BACKUP_DIR }}"
+          echo "备份目录: $BACKUP_DIR"
+          mkdir -p "$BACKUP_DIR"
           
           # 记录需要清理的工作流运行
           echo "[" > workflows_to_clean.json
@@ -48,7 +48,7 @@ jobs:
             echo "处理工作流: $workflow_name ($workflow_id)"
             
             # 获取工作流运行记录
-            gh run list --workflow "$workflow_id" --limit 100 --json status,conclusion,createdAt,updatedAt > "${{ env.BACKUP_DIR }}/${workflow_id}.json"
+            gh run list --workflow "$workflow_id" --limit 100 --json status,conclusion,createdAt,updatedAt > "$BACKUP_DIR/${workflow_id}.json"
             
             # 筛选已完成、已取消或已过期的记录
             while IFS= read -r run_id; do
@@ -121,10 +121,10 @@ jobs:
 # 工作流记录清理报告
 
 ## 执行信息
-- 执行时间: ${{ env.START_TIME }}
+- 执行时间: $START_TIME
 - 完成时间: $END_TIME
-- 清理记录数量: ${{ env.CLEANUP_COUNT }}
-- 备份目录: ${{ env.BACKUP_DIR }}
+- 清理记录数量: $CLEANUP_COUNT
+- 备份目录: $BACKUP_DIR
 
 ## 清理详情
 EOF
@@ -144,8 +144,8 @@ EOF
           fi
           
           # 保存报告
-          cp cleanup_report.md "${{ env.BACKUP_DIR }}/report.md"
-          echo "清理报告已生成: ${{ env.BACKUP_DIR }}/report.md"
+          cp cleanup_report.md "$BACKUP_DIR/report.md"
+          echo "清理报告已生成: $BACKUP_DIR/report.md"
 
       - name: 错误处理
         if: failure()
@@ -156,14 +156,14 @@ EOF
           
           # 记录错误信息
           echo "错误报告" > error_report.md
-          echo "执行时间: ${{ env.START_TIME }}" >> error_report.md
+          echo "执行时间: $START_TIME" >> error_report.md
           echo "错误时间: $(date +'%Y-%m-%d %H:%M:%S')" >> error_report.md
           echo "工作流: ${{ github.workflow }}" >> error_report.md
           echo "事件: ${{ github.event_name }}" >> error_report.md
           
           # 保存错误报告
-          if [ -d "${{ env.BACKUP_DIR }}" ]; then
-            cp error_report.md "${{ env.BACKUP_DIR }}/error.md"
+          if [ -d "$BACKUP_DIR" ]; then
+            cp error_report.md "$BACKUP_DIR/error.md"
           fi
 
       - name: 上传清理报告
