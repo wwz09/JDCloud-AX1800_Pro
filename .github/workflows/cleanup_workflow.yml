@@ -1,0 +1,181 @@
+name: 工作流记录清理
+run-name: 清理工作流记录
+
+on:
+  schedule:
+    - cron: '0 */8 * * *'  # 每8小时运行一次
+  workflow_dispatch:  # 手动触发
+
+permissions:
+  actions: write  # 需要写入权限来删除工作流记录
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+
+      - name: 设置环境
+        run: |
+          echo "START_TIME=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+          echo "BACKUP_DIR=$(mkdir -p .github/workflow_backups && echo .github/workflow_backups/$(date +'%Y%m%d_%H%M%S'))" >> $GITHUB_ENV
+
+      - name: 检查工作流记录状态
+        run: |
+          # 安装GitHub CLI
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
+          # 认证GitHub CLI
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          
+          # 获取所有工作流
+          gh workflow list --json name,id > workflows.json
+          
+          # 遍历工作流，获取状态
+          echo "开始检查工作流记录状态..."
+          echo "备份目录: ${{ env.BACKUP_DIR }}"
+          mkdir -p "${{ env.BACKUP_DIR }}"
+          
+          # 记录需要清理的工作流运行
+          echo "[" > workflows_to_clean.json
+          FIRST=true
+          
+          while IFS= read -r workflow_id; do
+            workflow_name=$(gh workflow view "$workflow_id" --json name | jq -r '.name')
+            echo "处理工作流: $workflow_name ($workflow_id)"
+            
+            # 获取工作流运行记录
+            gh run list --workflow "$workflow_id" --limit 100 --json status,conclusion,createdAt,updatedAt > "${{ env.BACKUP_DIR }}/${workflow_id}.json"
+            
+            # 筛选已完成、已取消或已过期的记录
+            while IFS= read -r run_id; do
+              status=$(gh run view "$run_id" --json status,conclusion | jq -r '.status')
+              conclusion=$(gh run view "$run_id" --json status,conclusion | jq -r '.conclusion')
+              
+              if [[ "$status" == "completed" || "$status" == "cancelled" || "$conclusion" == "cancelled" || "$conclusion" == "failure" || "$conclusion" == "success" || "$conclusion" == "skipped" ]]; then
+                if [ "$FIRST" = true ]; then
+                  FIRST=false
+                else
+                  echo "," >> workflows_to_clean.json
+                fi
+                echo "  {" >> workflows_to_clean.json
+                echo "    \"workflow_id\": \"$workflow_id\"," >> workflows_to_clean.json
+                echo "    \"workflow_name\": \"$workflow_name\"," >> workflows_to_clean.json
+                echo "    \"run_id\": \"$run_id\"," >> workflows_to_clean.json
+                echo "    \"status\": \"$status\"," >> workflows_to_clean.json
+                echo "    \"conclusion\": \"$conclusion\"" >> workflows_to_clean.json
+                echo "  }" >> workflows_to_clean.json
+              fi
+            done <<< "$(gh run list --workflow "$workflow_id" --limit 100 --json databaseId | jq -r '.[].databaseId')"
+          done <<< "$(gh workflow list --json id | jq -r '.[].id')"
+          
+          echo "]" >> workflows_to_clean.json
+          
+          # 统计需要清理的记录数
+          CLEANUP_COUNT=$(jq length workflows_to_clean.json)
+          echo "需要清理的工作流记录数: $CLEANUP_COUNT"
+          echo "CLEANUP_COUNT=$CLEANUP_COUNT" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: 执行记录清除操作
+        run: |
+          # 安装GitHub CLI
+          sudo apt-get update
+          sudo apt-get install -y gh
+          
+          # 认证GitHub CLI
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          
+          # 读取需要清理的工作流运行
+          if [ -f "workflows_to_clean.json" ]; then
+            echo "开始执行清理操作..."
+            
+            # 遍历需要清理的记录
+            jq -c '.[]' workflows_to_clean.json | while read -r item; do
+              workflow_id=$(echo "$item" | jq -r '.workflow_id')
+              workflow_name=$(echo "$item" | jq -r '.workflow_name')
+              run_id=$(echo "$item" | jq -r '.run_id')
+              status=$(echo "$item" | jq -r '.status')
+              conclusion=$(echo "$item" | jq -r '.conclusion')
+              
+              echo "清理工作流: $workflow_name, 运行ID: $run_id, 状态: $status, 结果: $conclusion"
+              
+              # 尝试删除工作流运行
+              gh run delete "$run_id" || echo "警告: 无法删除运行 $run_id"
+            done
+          else
+            echo "未找到需要清理的工作流记录"
+          fi
+        continue-on-error: true
+
+      - name: 生成清除操作报告
+        run: |
+          END_TIME=$(date +'%Y-%m-%d %H:%M:%S')
+          echo "END_TIME=$END_TIME" >> $GITHUB_ENV
+          
+          # 生成报告
+          cat > cleanup_report.md << EOF
+# 工作流记录清理报告
+
+## 执行信息
+- 执行时间: ${{ env.START_TIME }}
+- 完成时间: $END_TIME
+- 清理记录数量: ${{ env.CLEANUP_COUNT }}
+- 备份目录: ${{ env.BACKUP_DIR }}
+
+## 清理详情
+EOF
+          
+          # 添加清理详情
+          if [ -f "workflows_to_clean.json" ]; then
+            jq -c '.[]' workflows_to_clean.json | while read -r item; do
+              workflow_name=$(echo "$item" | jq -r '.workflow_name')
+              run_id=$(echo "$item" | jq -r '.run_id')
+              status=$(echo "$item" | jq -r '.status')
+              conclusion=$(echo "$item" | jq -r '.conclusion')
+              
+              echo "- 工作流: $workflow_name, 运行ID: $run_id, 状态: $status, 结果: $conclusion" >> cleanup_report.md
+            done
+          else
+            echo "- 无清理记录"
+          fi
+          
+          # 保存报告
+          cp cleanup_report.md "${{ env.BACKUP_DIR }}/report.md"
+          echo "清理报告已生成: ${{ env.BACKUP_DIR }}/report.md"
+
+      - name: 错误处理
+        if: failure()
+        run: |
+          echo "清理过程中发生错误"
+          echo "错误时间: $(date +'%Y-%m-%d %H:%M:%S')"
+          echo "错误信息: ${{ github.event_name }} 工作流执行失败"
+          
+          # 记录错误信息
+          echo "错误报告" > error_report.md
+          echo "执行时间: ${{ env.START_TIME }}" >> error_report.md
+          echo "错误时间: $(date +'%Y-%m-%d %H:%M:%S')" >> error_report.md
+          echo "工作流: ${{ github.workflow }}" >> error_report.md
+          echo "事件: ${{ github.event_name }}" >> error_report.md
+          
+          # 保存错误报告
+          if [ -d "${{ env.BACKUP_DIR }}" ]; then
+            cp error_report.md "${{ env.BACKUP_DIR }}/error.md"
+          fi
+
+      - name: 上传清理报告
+        uses: actions/upload-artifact@v6
+        with:
+          name: workflow-cleanup-report-${{ github.run_id }}
+          path: |
+            cleanup_report.md
+            ${{ env.BACKUP_DIR }}/
+          retention-days: 30
+
+      - name: 清理临时文件
+        run: |
+          rm -f workflows.json workflows_to_clean.json cleanup_report.md error_report.md
+          echo "临时文件已清理"
