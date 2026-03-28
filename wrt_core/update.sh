@@ -88,6 +88,7 @@ main() {
     remove_attendedsysupgrade
     fix_kconfig_recursive_dependency
     install_feeds
+    fix_xray_core_go_version
     update_docker_stack
     fix_cups_libcups_avahi_depends
     fix_easytier_lua

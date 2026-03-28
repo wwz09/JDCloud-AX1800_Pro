@@ -37,6 +37,11 @@ update_feeds() {
 
 install_feeds() {
     ./scripts/feeds update -i
+    # 先移除有问题的luci-app-natmap包
+    if [[ -d "$BUILD_DIR/feeds/small8/luci-app-natmap" ]]; then
+        \rm -rf "$BUILD_DIR/feeds/small8/luci-app-natmap"
+        echo "已移除有问题的 luci-app-natmap 包"
+    fi
     for dir in $BUILD_DIR/feeds/*; do
         if [ -d "$dir" ] && [[ ! "$dir" == *.tmp ]] && [[ ! "$dir" == *.index ]] && [[ ! "$dir" == *.targetindex ]]; then
             if [[ $(basename "$dir") == "small8" ]]; then

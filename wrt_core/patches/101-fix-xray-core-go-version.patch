@@ -1,0 +1,15 @@
+--- a/Makefile
++++ b/Makefile
+@@ -50,6 +50,9 @@ define Package/xray-core/description
+   Xray, Penetrates Everything.
+ endef
+ 
++define Build/Prepare
++	$(call Build/Prepare/Default)
++	cd $(PKG_BUILD_DIR) && \
++		GOTOOLCHAIN=auto go mod tidy || true
++endef
++
+ define Build/Compile
+ 	$(call GoPackage/Build/Compile)
+ endef
