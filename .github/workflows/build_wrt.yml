@@ -16,7 +16,6 @@ on:
           - qihoo_360v6_immwrt  
           - zn_m2_immwrt
           - zn_m2_libwrt
-          - x64_immwrt
   push:
     branches:
       - main
