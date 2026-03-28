@@ -35,8 +35,8 @@ EOF
 }
 
 jdc_ax1800_pro_wifi_cfg() {
-	configure_wifi 0 149 HE80 20 'YM520-5G' 'lily5124937，'
-	configure_wifi 1 1 HE20 20 'YM520-2.4G' 'lily5124937，'
+	configure_wifi 0 149 HE80 20 'YM520-5G' 'lily5124937'
+	configure_wifi 1 1 HE20 20 'YM520-2.4G' 'lily5124937'
 }
 
 jdc_ax6600_wifi_cfg() {
