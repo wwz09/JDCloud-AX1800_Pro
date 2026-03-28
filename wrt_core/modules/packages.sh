@@ -510,36 +510,36 @@ update_package() {
 
 # 修复xray-core的Go版本兼容性问题
 # 问题：xray-core需要Go >= 1.26，但系统运行的是Go 1.25.8
-# 解决方案：设置GOTOOLCHAIN=auto允许自动下载所需版本的Go
+# 解决方案：直接修改Build/Compile目标，在执行go命令时设置GOTOOLCHAIN=auto
 fix_xray_core_go_version() {
     local xray_makefile="$BUILD_DIR/feeds/small8/xray-core/Makefile"
     
     if [[ -f "$xray_makefile" ]]; then
         echo "正在修复 xray-core 的 Go 版本兼容性问题..."
         
-        # 检查是否已经有Build/Prepare定义
-        if grep -q "define Build/Prepare" "$xray_makefile"; then
-            # 如果存在，在Build/Prepare中添加GOTOOLCHAIN设置
-            sed -i '/define Build\/Prepare/,/endef/{ 
-                /endef/i\
-\tcd $(PKG_BUILD_DIR) && GOTOOLCHAIN=auto go mod tidy || true
-            }' "$xray_makefile"
-        else
-            # 如果不存在，在Build/Compile之前添加新的Build/Prepare
-            sed -i '/define Build\/Compile/i\
-define Build/Prepare\
-\t$(call Build/Prepare/Default)\
-\tcd $(PKG_BUILD_DIR) && GOTOOLCHAIN=auto go mod tidy || true\
-endef\
-' "$xray_makefile"
-        fi
+        # 备份原始Makefile
+        cp "$xray_makefile" "$xray_makefile.bak"
         
-        # 同时设置环境变量
+        # 方法1：在Makefile开头添加环境变量设置
+        sed -i '^include \$(TOPDIR)\/rules.mk/i\
+# Fix Go version compatibility
+export GOTOOLCHAIN=auto
+' "$xray_makefile"
+        
+        # 方法2：直接修改Build/Compile目标，在其中设置环境变量
         sed -i '/^define Build\/Compile/i\
-PKG_BUILD_FLAGS+=no-mips16\
+# 修复Go版本兼容性问题
+PKG_BUILD_FLAGS+=no-mips16
 GO_PKG_BUILD_VARS+=GOTOOLCHAIN=auto
 ' "$xray_makefile"
         
+        # 方法3：直接修改Makefile中的go命令执行方式
+        sed -i 's|\t\tgo |\t\tGOTOOLCHAIN=auto go |g' "$xray_makefile"
+        sed -i 's|\tgo |\tGOTOOLCHAIN=auto go |g' "$xray_makefile"
+        
         echo "xray-core Makefile 修复完成"
+        echo "已在Makefile中设置 GOTOOLCHAIN=auto"
+    else
+        echo "警告：未找到 xray-core Makefile: $xray_makefile"
     fi
 }
