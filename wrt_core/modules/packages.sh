@@ -520,22 +520,20 @@ fix_xray_core_go_version() {
         # 备份原始Makefile
         cp "$xray_makefile" "$xray_makefile.bak"
         
-        # 方法1：在Makefile开头添加环境变量设置
-        sed -i '/^include \$(TOPDIR)\/rules.mk/i\
+        # 方法1：创建一个临时文件，使用更可靠的方式修改Makefile
+        cat > "$xray_makefile.tmp" << 'EOF'
 # Fix Go version compatibility
 export GOTOOLCHAIN=auto
-' "$xray_makefile"
+
+EOF
         
-        # 方法2：直接修改Build/Compile目标，在其中设置环境变量
-        sed -i '/^define Build\/Compile/i\
-# 修复Go版本兼容性问题
-PKG_BUILD_FLAGS+=no-mips16
-GO_PKG_BUILD_VARS+=GOTOOLCHAIN=auto
-' "$xray_makefile"
+        # 方法2：在Makefile开头添加环境变量设置（使用更可靠的方式）
+        sed -n '1!p' "$xray_makefile" >> "$xray_makefile.tmp"
+        mv "$xray_makefile.tmp" "$xray_makefile"
         
-        # 方法3：直接修改Makefile中的go命令执行方式
-        sed -i 's|\t\tgo |\t\tGOTOOLCHAIN=auto go |g' "$xray_makefile"
-        sed -i 's|\tgo |\tGOTOOLCHAIN=auto go |g' "$xray_makefile"
+        # 方法3：直接修改Makefile中的go命令执行方式（使用更简单的sed命令）
+        sed -i 's/\t\tgo /\t\tGOTOOLCHAIN=auto go /g' "$xray_makefile"
+        sed -i 's/\tgo /\tGOTOOLCHAIN=auto go /g' "$xray_makefile"
         
         echo "xray-core Makefile 修复完成"
         echo "已在Makefile中设置 GOTOOLCHAIN=auto"
