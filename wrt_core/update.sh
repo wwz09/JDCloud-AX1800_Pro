@@ -23,7 +23,7 @@ fi
 FEEDS_CONF="feeds.conf.default"
 GOLANG_REPO="https://github.com/sbwml/packages_lang_golang"
 GOLANG_BRANCH="25.x"
-THEME_SET="argon"
+THEME_SET="istorex"
 LAN_ADDR="192.168.100.1"
 
 SCRIPT_DIR=$(cd $(dirname $0) && pwd)
