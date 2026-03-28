@@ -173,7 +173,7 @@ jobs:
             fi
           } > ./firmware/luci_plugins.md
           
-          # 精减固件名称
+          # 批量重命名固件：移除"openwrt-qualcommax-"前缀
           for file in ./firmware/*.*; do
             # 只处理文件，不处理目录
             [ -f "$file" ] || continue
@@ -181,20 +181,53 @@ jobs:
             # 获取文件名（不含路径）
             filename=$(basename "$file")
             
-            # 跳过已生成的配置文件和插件列表
-            if [[ "$filename" != "config.txt" && "$filename" != "luci_plugins.md" ]]; then
-              # 获取文件扩展名
-              extension="${filename##*.}"
-              # 直接使用设备名命名
-              new_name="./firmware/${{ inputs.model }}.$extension"
+            # 跳过已生成的配置文件、插件列表和校验文件
+            if [[ "$filename" == "config.txt" || "$filename" == "luci_plugins.md" || "$filename" == "sha256sums.txt" ]]; then
+              continue
+            fi
+            
+            # 检查文件名是否包含需要移除的前缀
+            if [[ "$filename" == openwrt-qualcommax-* ]]; then
+              # 移除"openwrt-qualcommax-"前缀
+              new_filename="${filename#openwrt-qualcommax-}"
+              new_name="./firmware/$new_filename"
               
-              # 避免文件覆盖
+              # 避免文件覆盖（如果目标文件已存在，添加数字后缀）
+              if [ -e "$new_name" ] && [ "$file" != "$new_name" ]; then
+                # 获取扩展名
+                extension="${new_filename##*.}"
+                # 获取不含扩展名的部分
+                name_without_ext="${new_filename%.*}"
+                counter=1
+                while [ -e "./firmware/${name_without_ext}_${counter}.${extension}" ]; do
+                  counter=$((counter + 1))
+                done
+                new_name="./firmware/${name_without_ext}_${counter}.${extension}"
+                new_filename="${name_without_ext}_${counter}.${extension}"
+              fi
+              
+              # 执行重命名
               if [ "$file" != "$new_name" ]; then
                 mv "$file" "$new_name"
-                echo "重命名固件: $filename -> ${{ inputs.model }}.$extension"
+                echo "重命名固件: $filename -> $new_filename"
               fi
+            else
+              echo "跳过文件（无前缀）: $filename"
             fi
           done
+          
+          # 生成SHA256校验文件
+          echo "生成SHA256校验文件..."
+          cd ./firmware
+          sha256sum *.* > sha256sums.txt 2>/dev/null || echo "警告: 生成校验文件失败"
+          cd ..
+          echo "校验文件已生成: ./firmware/sha256sums.txt"
+          
+          # 输出固件清单
+          echo "=============================================="
+          echo "发布文件清单:"
+          ls -lh ./firmware/
+          echo "=============================================="
 
       - name: Delete Old Cache
         run: |

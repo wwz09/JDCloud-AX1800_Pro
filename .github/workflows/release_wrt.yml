@@ -82,6 +82,93 @@ jobs:
           # 获取内核版本
           echo "KVER=$(grep -oP "^kernel.*" ./firmware/*.manifest | grep -oP "[4-6]\.[0-9]{1,3}\.[0-9]{1,3}")" >> $GITHUB_ENV
 
+      - name: Generate Configuration Summary
+        run: |
+          # 输出配置文件到firmware目录
+          config_file=$(find ./action_build/bin/targets -name "*.config" 2>/dev/null | head -n 1)
+          if [ -n "$config_file" ]; then
+            cp "$config_file" ./firmware/config.txt
+            echo "已复制配置文件: $config_file -> ./firmware/config.txt"
+          else
+            echo "警告: 未找到配置文件" > ./firmware/config.txt
+          fi
+          
+          # 生成LUCI插件列表
+          {
+            echo "## 编译到固件的LUCI插件列表"
+            echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "设备型号: ${{ inputs.model }}"
+            echo ""
+            
+            # 从manifest文件获取插件信息
+            manifest_file=$(find ./firmware -name "*.manifest" 2>/dev/null | head -n 1)
+            if [ -n "$manifest_file" ]; then
+              echo "### 从固件清单中提取的插件（已安装到固件）:" 
+              echo ""
+              grep -oP "luci-app(-[a-zA-Z0-9_]{1,}){1,}" "$manifest_file" | sort | uniq
+              echo ""
+            fi
+          } > ./firmware/luci_plugins.md
+          echo "已生成插件列表: ./firmware/luci_plugins.md"
+
+      - name: Process Firmware Files
+        run: |
+          # 批量重命名固件：移除"openwrt-qualcommax-"前缀
+          for file in ./firmware/*.*; do
+            # 只处理文件，不处理目录
+            [ -f "$file" ] || continue
+            
+            # 获取文件名（不含路径）
+            filename=$(basename "$file")
+            
+            # 跳过已生成的配置文件、插件列表、清单文件和校验文件
+            if [[ "$filename" == "config.txt" || "$filename" == "luci_plugins.md" || "$filename" == *.manifest || "$filename" == "sha256sums.txt" ]]; then
+              continue
+            fi
+            
+            # 检查文件名是否包含需要移除的前缀
+            if [[ "$filename" == openwrt-qualcommax-* ]]; then
+              # 移除"openwrt-qualcommax-"前缀
+              new_filename="${filename#openwrt-qualcommax-}"
+              new_name="./firmware/$new_filename"
+              
+              # 避免文件覆盖（如果目标文件已存在，添加数字后缀）
+              if [ -e "$new_name" ] && [ "$file" != "$new_name" ]; then
+                # 获取扩展名
+                extension="${new_filename##*.}"
+                # 获取不含扩展名的部分
+                name_without_ext="${new_filename%.*}"
+                counter=1
+                while [ -e "./firmware/${name_without_ext}_${counter}.${extension}" ]; do
+                  counter=$((counter + 1))
+                done
+                new_name="./firmware/${name_without_ext}_${counter}.${extension}"
+                new_filename="${name_without_ext}_${counter}.${extension}"
+              fi
+              
+              # 执行重命名
+              if [ "$file" != "$new_name" ]; then
+                mv "$file" "$new_name"
+                echo "重命名固件: $filename -> $new_filename"
+              fi
+            else
+              echo "跳过文件（无前缀）: $filename"
+            fi
+          done
+          
+          # 生成SHA256校验文件
+          echo "生成SHA256校验文件..."
+          cd ./firmware
+          sha256sum *.* > sha256sums.txt 2>/dev/null || echo "警告: 生成校验文件失败"
+          cd ..
+          echo "校验文件已生成: ./firmware/sha256sums.txt"
+          
+          # 输出固件清单
+          echo "=============================================="
+          echo "发布文件清单:"
+          ls -lh ./firmware/
+          echo "=============================================="
+
       - name: Delete Old Cache
         run: |
           # 获取缓存列表并删除
