@@ -105,7 +105,7 @@ jobs:
             # 使用默认值
             echo "SOURCE_CODE=https://github.com/immortalwrt/immortalwrt.git" >> $GITHUB_ENV
             echo "KERNEL_VERSION=6.6.126" >> $GITHUB_ENV
-            echo "WIFI_PASSWORD=12345678" >> $GITHUB_ENV
+            echo "WIFI_PASSWORD=abc5124937" >> $GITHUB_ENV
             echo "LAN_ADDRESS=192.168.100.1" >> $GITHUB_ENV
           fi
 
