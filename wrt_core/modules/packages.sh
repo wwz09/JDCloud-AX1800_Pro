@@ -521,7 +521,7 @@ fix_xray_core_go_version() {
         cp "$xray_makefile" "$xray_makefile.bak"
         
         # 方法1：在Makefile开头添加环境变量设置
-        sed -i '^include \$(TOPDIR)\/rules.mk/i\
+        sed -i '/^include \$(TOPDIR)\/rules.mk/i\
 # Fix Go version compatibility
 export GOTOOLCHAIN=auto
 ' "$xray_makefile"

@@ -1,5 +1,5 @@
 name: Build WRT
-run-name: Build - ${{ inputs.model }}
+run-name: Build - ${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}
 
 on:
   workflow_dispatch:
@@ -17,6 +17,13 @@ on:
           - zn_m2_immwrt
           - zn_m2_libwrt
           - x64_immwrt
+  push:
+    branches:
+      - main
+    paths:
+      - 'wrt_core/**'
+      - 'build.sh'
+      - '.github/workflows/**'
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,7 +117,7 @@ jobs:
           fi
 
       - name: Pre Clone
-        run: ./wrt_core/pre_clone_action.sh ${{ inputs.model }}
+        run: ./wrt_core/pre_clone_action.sh ${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}
 
       - name: Cache Dependencies
         uses: actions/cache@v5.0.2
@@ -131,7 +138,7 @@ jobs:
           fi
 
       - name: Build Firmware
-        run: ./build.sh ${{ inputs.model }}
+        run: ./build.sh ${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}
 
       - name: Generate Configuration Summary
         run: |
@@ -151,7 +158,7 @@ jobs:
           {
             echo "## 编译到固件的LUCI插件列表"
             echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-            echo "设备型号: ${{ inputs.model }}"
+            echo "设备型号: ${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}"
             echo ""
             
             # 优先从manifest文件获取插件信息
@@ -251,7 +258,7 @@ jobs:
       - name: Upload Firmware
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ env.BUILD_DATE }}_${{ inputs.model }}
+          name: ${{ env.BUILD_DATE }}_${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}
           path: ./firmware/*.*
           retention-days: 90
 
@@ -276,8 +283,8 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: v${{ env.BUILD_DATE }}_${{ inputs.model }}
-          name: Firmware ${{ inputs.model }} - ${{ env.BUILD_DATE }}
+          tag: v${{ env.BUILD_DATE }}_${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }}
+          name: Firmware ${{ inputs.model || 'jdcloud_ipq60xx_immwrt' }} - ${{ env.BUILD_DATE }}
           body_path: release_body.txt
           artifacts: ./firmware/*.*
           draft: false
