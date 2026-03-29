@@ -42,6 +42,11 @@ install_feeds() {
         \rm -rf "$BUILD_DIR/feeds/small8/luci-app-natmap"
         echo "已移除有问题的 luci-app-natmap 包"
     fi
+    # 先移除有问题的webd包
+    if [[ -d "$BUILD_DIR/feeds/small8/webd" ]]; then
+        \rm -rf "$BUILD_DIR/feeds/small8/webd"
+        echo "已移除有问题的 webd 包"
+    fi
     for dir in $BUILD_DIR/feeds/*; do
         if [ -d "$dir" ] && [[ ! "$dir" == *.tmp ]] && [[ ! "$dir" == *.index ]] && [[ ! "$dir" == *.targetindex ]]; then
             if [[ $(basename "$dir") == "small8" ]]; then
