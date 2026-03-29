@@ -13,10 +13,11 @@ update_feeds() {
         echo "src-git small8 https://github.com/kenzok8/jell" >>"$FEEDS_PATH"
     fi
 
-    if ! grep -q "openwrt-passwall" "$FEEDS_PATH"; then
-        [ -z "$(tail -c 1 "$FEEDS_PATH")" ] || echo "" >>"$FEEDS_PATH"
-        echo "src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall;main" >>"$FEEDS_PATH"
-    fi
+    # 不添加passwall源
+    # if ! grep -q "openwrt-passwall" "$FEEDS_PATH"; then
+    #     [ -z "$(tail -c 1 "$FEEDS_PATH")" ] || echo "" >>"$FEEDS_PATH"
+    #     echo "src-git passwall https://github.com/Openwrt-Passwall/openwrt-passwall;main" >>"$FEEDS_PATH"
+    # fi
 
     if ! grep -q "openwrt_bandix" "$BUILD_DIR/$FEEDS_CONF"; then
         [ -z "$(tail -c 1 "$BUILD_DIR/$FEEDS_CONF")" ] || echo "" >>"$BUILD_DIR/$FEEDS_CONF"
@@ -52,8 +53,6 @@ install_feeds() {
             if [[ $(basename "$dir") == "small8" ]]; then
                 install_small8
                 install_fullconenat
-            elif [[ $(basename "$dir") == "passwall" ]]; then
-                install_passwall
             else
                 ./scripts/feeds install -f -ap $(basename "$dir")
             fi
